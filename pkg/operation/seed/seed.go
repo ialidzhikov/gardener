@@ -395,7 +395,8 @@ func BootstrapCluster(seed *Seed, secrets map[string]*corev1.Secret, imageVector
 	applierOptions.MergeFuncs[vpaGK] = retainStatusInformation
 	applierOptions.MergeFuncs[issuerGK] = retainStatusInformation
 
-	return chartApplier.ApplyChartWithOptions(context.TODO(), filepath.Join("charts", chartName), common.GardenNamespace, chartName, nil, map[string]interface{}{
+	logger.Logger.Errorln("Applying seed-bootstrap chart")
+	err = chartApplier.ApplyChartWithOptions(context.TODO(), filepath.Join("charts", chartName), common.GardenNamespace, chartName, nil, map[string]interface{}{
 		"cloudProvider": seed.CloudProvider,
 		"global": map[string]interface{}{
 			"images": images,
@@ -439,6 +440,13 @@ func BootstrapCluster(seed *Seed, secrets map[string]*corev1.Secret, imageVector
 			"podAnnotations": vpaPodAnnotations,
 		},
 	}, applierOptions)
+
+	if err != nil {
+		logger.Logger.Errorln("Error occurred")
+		logger.Logger.Errorln(err.Error())
+	}
+
+	return err
 }
 
 func createClusterIssuer(k8sSeedclient kubernetes.Interface, certificateManagement *corev1.Secret) (map[string]interface{}, error) {

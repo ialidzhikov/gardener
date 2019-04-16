@@ -32,12 +32,16 @@ spec:
         image: {{ index .Values.images "grafana" }}
         imagePullPolicy: IfNotPresent
         env:
-        - name: GF_AUTH_BASIC_ENABLED
-          value: "false"
-        - name: GF_AUTH_DISABLE_LOGIN_FORM
-          value: "true"
-        - name: GF_AUTH_ANONYMOUS_ENABLED
-          value: "true"
+        - name: GF_SECURITY_ADMIN_USER
+          value: admin
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: admin
+        #- name: GF_AUTH_BASIC_ENABLED
+        #  value: "false"
+        #- name: GF_AUTH_DISABLE_LOGIN_FORM
+        #  value: "true"
+        #- name: GF_AUTH_ANONYMOUS_ENABLED
+        #  value: "true"
         - name: GF_SNAPSHOTS_EXTERNAL_ENABLED
           value: "false"
         - name: GF_ALERTING_ENABLED

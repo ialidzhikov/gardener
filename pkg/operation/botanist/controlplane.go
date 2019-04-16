@@ -477,7 +477,7 @@ func (b *Botanist) patchDeploymentCloudProviderChecksums(deploymentName string) 
 
 // DeploySeedLogging will install the Helm release "seed-bootstrap/charts/elastic-kibana-curator" in the Seed clusters.
 func (b *Botanist) DeploySeedLogging() error {
-	if !controllermanagerfeatures.FeatureGate.Enabled(features.Logging) {
+	/*if !controllermanagerfeatures.FeatureGate.Enabled(features.Logging) {
 		return common.DeleteLoggingStack(b.K8sSeedClient, b.Shoot.SeedNamespace)
 	}
 
@@ -521,9 +521,10 @@ func (b *Botanist) DeploySeedLogging() error {
 			},
 		},
 		"global": images,
-	}
+	}*/
 
-	return b.ApplyChartSeed(filepath.Join(common.ChartPath, "seed-bootstrap", "charts", "elastic-kibana-curator"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-logging", b.Shoot.SeedNamespace), nil, elasticKibanaCurator)
+	//return b.ApplyChartSeed(filepath.Join(common.ChartPath, "seed-bootstrap", "charts", "loki"), b.Shoot.SeedNamespace, fmt.Sprintf("%s-logging", b.Shoot.SeedNamespace), nil, elasticKibanaCurator)
+	return nil
 }
 
 // DeployCertBroker deploys the Cert-Broker to the Shoot namespace in the Seed.
