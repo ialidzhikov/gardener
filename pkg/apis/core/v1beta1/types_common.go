@@ -153,7 +153,15 @@ const (
 	GardenerName = "gardener"
 	// ExternalGardenerName is the value in a Kubernetes core resources `.metadata.finalizers[]` array on which the
 	// Gardener will react when performing a delete request on a resource.
+	ExternalGardenerName2 = "gardener.cloud/gardener"
+	// ExternalGardenerName is the value in a Kubernetes core resources `.metadata.finalizers[]` array on which the
+	// Gardener will react when performing a delete request on a resource.
 	ExternalGardenerName = "garden.sapcloud.io/gardener"
+	// ExternalGardenerNameDeprecated is the value in a Kubernetes core resources `.metadata.finalizers[]` array on which the
+	// Gardener will react when performing a delete request on a resource.
+	//
+	// Deprecated: Use `ExternalGardenerName` instead.
+	ExternalGardenerNameDeprecated = "garden.sapcloud.io/gardener"
 )
 
 const (

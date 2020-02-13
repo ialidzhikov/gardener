@@ -104,9 +104,17 @@ func (r *reconciler) reconcileBackupBucket(backupBucket *gardencorev1beta1.Backu
 		return reconcile.Result{}, err
 	}
 
-	if err := controllerutils.EnsureFinalizer(r.ctx, r.client, secret, gardencorev1beta1.ExternalGardenerName); err != nil {
+	if err := controllerutils.EnsureFinalizer(r.ctx, r.client, secret, gardencorev1beta1.ExternalGardenerName2); err != nil {
 		backupBucketLogger.Errorf("Failed to ensure external gardener finalizer on referred secret: %+v", err)
 		return reconcile.Result{}, err
+	}
+
+	// TODO: This code can be removed in a future version.
+	if controllerutils.HasFinalizer(secret, gardencorev1beta1.ExternalGardenerNameDeprecated) {
+		if err := controllerutils.RemoveFinalizer(r.ctx, r.client, secret.DeepCopy(), gardencorev1beta1.ExternalGardenerNameDeprecated); err != nil {
+			backupBucketLogger.Errorf("Could not remove deprecated finalizer from Secret referenced in SecretBinding: %s", err.Error())
+			return reconcile.Result{}, err
+		}
 	}
 
 	seedClient, err := seedpkg.GetSeedClient(r.ctx, r.client, r.config.SeedClientConnection.ClientConnectionConfiguration, r.config.SeedSelector == nil, *backupBucket.Spec.SeedName)
