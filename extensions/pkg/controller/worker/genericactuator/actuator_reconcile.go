@@ -191,6 +191,11 @@ func (a *genericActuator) Reconcile(ctx context.Context, worker *extensionsv1alp
 	if replicas > 0 {
 		// Wait until all unwanted machine deployments are deleted from the system.
 		if err := a.waitUntilUnwantedMachineDeploymentsDeleted(ctx, logger, worker, wantedMachineDeployments); err != nil {
+			constraint := gardencorev1beta1helper.GetCondition(cluster.Shoot.Status.Constraints, "MaintenancePreconditionsSatisfied")
+			if constraint != nil && constraint.Reason == "MisconfiguredPodDisruptionBudgets" {
+				return gardencorev1beta1helper.NewErrorWithCodes(constraint.Message, gardencorev1beta1.ErrorRetryableConfigurationProblem)
+			}
+
 			return errors.Wrapf(err, "error while waiting for all undesired machine deployments to be deleted")
 		}
 	}
@@ -435,6 +440,12 @@ func (a *genericActuator) waitUntilWantedMachineDeploymentsAvailable(ctx context
 			}
 
 			if numUnavailable == 0 && numAvailable == numDesired && numUpdated < numberOfAwakeMachines {
+				constraint := gardencorev1beta1helper.GetCondition(cluster.Shoot.Status.Constraints, "MaintenancePreconditionsSatisfied")
+				if constraint != nil && constraint.Reason == "MisconfiguredPodDisruptionBudgets" {
+					err := gardencorev1beta1helper.NewErrorWithCodes(constraint.Message, gardencorev1beta1.ErrorRetryableConfigurationProblem)
+					return retryutils.SevereError(err)
+				}
+
 				msg = fmt.Sprintf("Waiting until all old machines are drained and terminated. Waiting for %d machine(s)...", numberOfAwakeMachines-numUpdated)
 				break
 			}

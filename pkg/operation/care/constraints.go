@@ -21,16 +21,14 @@ import (
 
 	"github.com/gardener/gardener/extensions/pkg/webhook"
 	"github.com/gardener/gardener/pkg/operation"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/gardener/gardener/pkg/operation/shoot"
-	"github.com/sirupsen/logrus"
-
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	"github.com/gardener/gardener/pkg/operation/botanist/matchers"
 
+	"github.com/sirupsen/logrus"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -80,10 +78,10 @@ func (c *Constraint) ConstraintsChecks(
 	ctx context.Context,
 	constraints []gardencorev1beta1.Condition,
 ) []gardencorev1beta1.Condition {
-	updatedConstrataints := c.constraintsChecks(ctx, constraints)
+	updatedConstraints := c.constraintsChecks(ctx, constraints)
 	lastOp := c.shoot.Info.Status.LastOperation
 	lastErrors := c.shoot.Info.Status.LastErrors
-	return PardonConditions(updatedConstrataints, lastOp, lastErrors)
+	return PardonConditions(updatedConstraints, lastOp, lastErrors)
 }
 
 func (c *Constraint) constraintsChecks(
@@ -123,17 +121,27 @@ func (c *Constraint) constraintsChecks(
 
 	var newHibernationConstraint, newMaintenancePreconditionsSatisfiedConstraint *gardencorev1beta1.Condition
 
-	status, reason, message, err := c.CheckForProblematicWebhooks(ctx)
-	if err == nil {
-		updatedHibernationCondition := gardencorev1beta1helper.UpdatedCondition(hibernationPossibleConstraint, status, reason, message)
+	hibernationStatus, hibernationReason, hibernationMessage, hibernationErr := c.CheckForProblematicWebhooks(ctx)
+	if hibernationErr == nil {
+		updatedHibernationCondition := gardencorev1beta1helper.UpdatedCondition(hibernationPossibleConstraint, hibernationStatus, hibernationReason, hibernationMessage)
 		newHibernationConstraint = &updatedHibernationCondition
+	}
 
-		updatedMaintenanceCondition := gardencorev1beta1helper.UpdatedCondition(maintenancePreconditionsSatisfiedConstraint, status, reason, message)
+	preconditions := []preconditionFn{
+		c.CheckForMisconfiguredPodDisruptionBudgets,
+		// Return the already computed result from the problematic webhooks check
+		func(context.Context) (gardencorev1beta1.ConditionStatus, string, string, error) {
+			return hibernationStatus, hibernationReason, hibernationMessage, hibernationErr
+		},
+	}
+	maintenanceStatus, maintenanceReason, maintenanceMessage, maintenanceErr := c.CheckIfMaintenancePreconditionsSatisfied(ctx, preconditions)
+	if maintenanceErr == nil {
+		updatedMaintenanceCondition := gardencorev1beta1helper.UpdatedCondition(maintenancePreconditionsSatisfiedConstraint, maintenanceStatus, maintenanceReason, maintenanceMessage)
 		newMaintenancePreconditionsSatisfiedConstraint = &updatedMaintenanceCondition
 	}
 
-	hibernationPossibleConstraint = NewConditionOrError(hibernationPossibleConstraint, newHibernationConstraint, err)
-	maintenancePreconditionsSatisfiedConstraint = NewConditionOrError(maintenancePreconditionsSatisfiedConstraint, newMaintenancePreconditionsSatisfiedConstraint, err)
+	hibernationPossibleConstraint = NewConditionOrError(hibernationPossibleConstraint, newHibernationConstraint, hibernationErr)
+	maintenancePreconditionsSatisfiedConstraint = NewConditionOrError(maintenancePreconditionsSatisfiedConstraint, newMaintenancePreconditionsSatisfiedConstraint, maintenanceErr)
 
 	return []gardencorev1beta1.Condition{hibernationPossibleConstraint, maintenancePreconditionsSatisfiedConstraint}
 }
@@ -247,7 +255,7 @@ func IsProblematicWebhook(
 		if timeoutSeconds != nil && *timeoutSeconds <= WebhookMaximumTimeoutSecondsNotProblematic {
 			// most control-plane API calls are made with a client-side timeout of 30s, so if a webhook has
 			// timeoutSeconds==30 the overall request might still fail although failurePolicy==Ignore, as there
-			// is overhead in communication with the API server and possible other webhooks.
+			// is overhead in communication with the   API server and possible other webhooks.
 			// in admissionregistration/v1 timeoutSeconds is defaulted to 10 while in v1beta1 it's defaulted to 30.
 			// be restrictive here and mark all webhooks without a timeout set or timeouts > 15s as problematic to
 			// avoid ops effort. It's clearly documented that users should specify low timeouts, see
@@ -265,4 +273,50 @@ func IsProblematicWebhook(
 	}
 
 	return false
+}
+
+func (c *Constraint) CheckForMisconfiguredPodDisruptionBudgets(ctx context.Context) (gardencorev1beta1.ConditionStatus, string, string, error) {
+	pdbList := &policyv1beta1.PodDisruptionBudgetList{}
+	if err := c.shootClient.List(ctx, pdbList); err != nil {
+		return "", "", "", fmt.Errorf("could not get PodDisruptionBudgets of Shoot cluster to check for misconfigured PodDisruptionBudgets")
+	}
+
+	for _, pdb := range pdbList.Items {
+		if IsMisconfiguredPodDisruptionBudget(&pdb) {
+			return gardencorev1beta1.ConditionFalse,
+				"MisconfiguredPodDisruptionBudgets",
+				fmt.Sprintf("PodDisruptionBudget %q is misconfigured: it requires zero voluntary evictions which might prevent the corresponding worker node to be gracefully drained", pdb.Namespace + "/" + pdb.Name),
+				nil
+		}
+	}
+	
+
+	return gardencorev1beta1.ConditionTrue,
+		"NoMisconfiguredPodDisruptionBudgets",
+		"All PodDisruptionBudgets are properly configured.",
+		nil
+}
+
+func IsMisconfiguredPodDisruptionBudget(pdb *policyv1beta1.PodDisruptionBudget) bool {
+	if pdb.ObjectMeta.Generation != pdb.Status.ObservedGeneration {
+		return false
+	}
+
+	return pdb.Status.ExpectedPods > 0 && pdb.Status.DisruptionsAllowed == 0
+}
+
+type preconditionFn = func(context.Context) (gardencorev1beta1.ConditionStatus, string, string, error)
+
+func (c *Constraint) CheckIfMaintenancePreconditionsSatisfied(ctx context.Context, preconditions []preconditionFn) (gardencorev1beta1.ConditionStatus, string, string, error) {
+	for _, precondition := range preconditions {
+		status, reason, message, err := precondition(ctx)
+		if status != gardencorev1beta1.ConditionTrue {
+			return status, reason, message, err
+		}
+	}
+
+	return gardencorev1beta1.ConditionTrue,
+		"AllPreconditionsSatisfied",
+		"All maintenance preconditions are satisfied.",
+		nil
 }

@@ -34,6 +34,8 @@ const (
 	ErrorCleanupClusterResources ErrorCode = "ERR_CLEANUP_CLUSTER_RESOURCES"
 	// ErrorConfigurationProblem indicates that the last error occurred due to a configuration problem.
 	ErrorConfigurationProblem ErrorCode = "ERR_CONFIGURATION_PROBLEM"
+
+	ErrorRetryableConfigurationProblem = "ERR_RETRYABLE_CONFIGURATION_PROBLEM"
 )
 
 // LastError indicates the last occurred error for an operation on a resource.

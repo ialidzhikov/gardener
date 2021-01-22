@@ -83,7 +83,7 @@ probably not be woken up again after hibernation without manual intervention of 
 that is via manual hibernation as well as scheduled hibernation.
 
 **`MaintenancePreconditionsSatisfied`**:
-  
+
 This constraint indicates whether all preconditions for a safe maintenance operation are satisfied (see also [this document](shoot_maintenance.md) for more information about what happens during a shoot maintenance).
 As of today, the same checks as in the `HibernationPossible` constraint are being performed (user-deployed webhooks that might interfere with potential rolling updates of shoot worker nodes).
 There is no further action being performed on this constraint's status (maintenance is still being performed).
