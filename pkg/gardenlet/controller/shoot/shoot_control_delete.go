@@ -572,6 +572,11 @@ func (c *Controller) runDeleteShootFlow(ctx context.Context, o *operation.Operat
 			Fn:           botanist.DeleteShootState,
 			Dependencies: flow.NewTaskIDs(deleteNamespace),
 		})
+		_ = g.Add(flow.Task{
+			Name:         "Removing label from cloud provider secret",
+			Fn:           botanist.RemoveCloudProviderSecretLabel,
+			Dependencies: flow.NewTaskIDs(deleteNamespace),
+		})
 		f = g.Compile()
 	)
 

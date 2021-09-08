@@ -531,6 +531,28 @@ func (o *Operation) EnsureShootStateExists(ctx context.Context) error {
 	return err
 }
 
+// AddCloudProviderSecretLabel adds (if needed) a provider label (provider.shoot.gardener.cloud/<type>="true")
+// to the cloud provider Secret that the Shoot's SecretBinding references.
+func (o *Operation) AddCloudProviderSecretLabel(ctx context.Context) error {
+	var (
+		shoot        = o.Shoot.GetInfo()
+		providerType = shoot.GetProviderType()
+	)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      o.Shoot.Secret.Name,
+			Namespace: o.Shoot.Secret.Namespace,
+		},
+	}
+	if err := o.K8sGardenClient.Client().Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+		return err
+	}
+
+	labelKey := v1beta1constants.LabelShootProviderTypePrefix + providerType
+	return kutil.PatchAddLabel(ctx, o.K8sGardenClient.Client(), secret, labelKey, "true")
+}
+
 func (o *Operation) DeleteShootState(ctx context.Context) error {
 	shootState := &gardencorev1alpha1.ShootState{
 		ObjectMeta: metav1.ObjectMeta{
@@ -547,6 +569,65 @@ func (o *Operation) DeleteShootState(ctx context.Context) error {
 	}
 
 	return client.IgnoreNotFound(o.K8sGardenClient.Client().Delete(ctx, shootState))
+}
+
+// RemoveCloudProviderSecretLabel removes (if needed) the provider label (provider.shoot.gardener.cloud/<type>="true")
+// from the cloud provider Secret that the Shoot's SecretBinding references.
+func (o *Operation) RemoveCloudProviderSecretLabel(ctx context.Context) error {
+	var (
+		shoot        = o.Shoot.GetInfo()
+		providerType = shoot.GetProviderType()
+	)
+
+	shouldRemoveLabel, err := o.shouldRemoveCloudProviderSecretLabel(ctx)
+	if err != nil {
+		return err
+	}
+
+	if shouldRemoveLabel {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      o.Shoot.Secret.Name,
+				Namespace: o.Shoot.Secret.Namespace,
+			},
+		}
+		if err := o.K8sGardenClient.Client().Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+			return err
+		}
+
+		labelKey := v1beta1constants.LabelShootProviderTypePrefix + providerType
+		return kutil.PatchRemoveLabel(ctx, o.K8sGardenClient.Client(), secret, labelKey)
+	}
+
+	return nil
+}
+
+func (o *Operation) shouldRemoveCloudProviderSecretLabel(ctx context.Context) (bool, error) {
+	var (
+		shoot             = o.Shoot.GetInfo()
+		providerType      = shoot.GetProviderType()
+		secretBindingName = shoot.Spec.SecretBindingName
+	)
+
+	shootList := &gardencorev1beta1.ShootList{}
+	if err := o.K8sGardenClient.Client().List(ctx, shootList, client.InNamespace(shoot.Namespace)); err != nil {
+		return false, err
+	}
+
+	for _, current := range shootList.Items {
+		if current.Spec.SecretBindingName != secretBindingName {
+			continue
+		}
+		if current.Name == shoot.Name {
+			continue
+		}
+
+		if current.Spec.Provider.Type == providerType {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // SaveGardenerResourcesInShootState saves the provided GardenerResourcesDataList in the ShootState's `gardener` field

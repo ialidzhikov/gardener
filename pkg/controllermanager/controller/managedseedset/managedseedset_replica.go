@@ -263,7 +263,7 @@ func (r *replica) CreateManagedSeed(ctx context.Context, c client.Client) error 
 // DeleteShoot deletes this replica's shoot using the given context and client.
 func (r *replica) DeleteShoot(ctx context.Context, c client.Client) error {
 	if r.shoot != nil {
-		if err := kutil.SetAnnotationAndUpdate(ctx, c, r.shoot, gutil.ConfirmationDeletion, "true"); err != nil {
+		if err := kutil.PatchAddAnnotation(ctx, c, r.shoot, gutil.ConfirmationDeletion, "true"); err != nil {
 			return err
 		}
 		return client.IgnoreNotFound(c.Delete(ctx, r.shoot))
@@ -284,7 +284,7 @@ func (r *replica) RetryShoot(ctx context.Context, c client.Client) error {
 	if r.shoot == nil {
 		return nil
 	}
-	if err := kutil.SetAnnotationAndUpdate(ctx, c, r.shoot, v1beta1constants.GardenerOperation, v1beta1constants.ShootOperationRetry); err != nil {
+	if err := kutil.PatchAddAnnotation(ctx, c, r.shoot, v1beta1constants.GardenerOperation, v1beta1constants.ShootOperationRetry); err != nil {
 		return err
 	}
 	return nil

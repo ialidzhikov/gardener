@@ -71,14 +71,44 @@ func SetMetaDataAnnotation(meta metav1.Object, key, value string) {
 	meta.SetAnnotations(annotations)
 }
 
+// HasMetaDataLabel checks if the passed meta object has the given key, value set in the labels section.
+func HasMetaDataLabel(meta metav1.Object, key, value string) bool {
+	val, ok := meta.GetLabels()[key]
+	return ok && val == value
+}
+
 // HasMetaDataAnnotation checks if the passed meta object has the given key, value set in the annotations section.
 func HasMetaDataAnnotation(meta metav1.Object, key, value string) bool {
 	val, ok := meta.GetAnnotations()[key]
 	return ok && val == value
 }
 
-// SetAnnotationAndUpdate sets the annotation on the given object and updates it.
-func SetAnnotationAndUpdate(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
+// PatchAddLabel adds the label on the given object via a patch request.
+func PatchAddLabel(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
+	if !HasMetaDataLabel(obj, key, value) {
+		objCopy := obj.DeepCopyObject().(client.Object)
+		SetMetaDataLabel(obj, key, value)
+		return c.Patch(ctx, obj, client.MergeFrom(objCopy))
+	}
+	return nil
+}
+
+// PatchRemoveLabel removes the label from the given object via a patch request.
+func PatchRemoveLabel(ctx context.Context, c client.Client, obj client.Object, key string) error {
+	if _, ok := obj.GetLabels()[key]; ok {
+		objCopy := obj.DeepCopyObject().(client.Object)
+
+		labels := obj.GetLabels()
+		delete(labels, key)
+		obj.SetLabels(labels)
+
+		return c.Patch(ctx, obj, client.MergeFrom(objCopy))
+	}
+	return nil
+}
+
+// PatchAddAnnotation adds the annotation on the given object via a patch request.
+func PatchAddAnnotation(ctx context.Context, c client.Client, obj client.Object, key, value string) error {
 	if !HasMetaDataAnnotation(obj, key, value) {
 		objCopy := obj.DeepCopyObject().(client.Object)
 		SetMetaDataAnnotation(obj, key, value)
