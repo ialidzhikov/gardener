@@ -143,6 +143,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.ResourceWatchCacheSize":                 schema_pkg_apis_core_v1alpha1_ResourceWatchCacheSize(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBinding":                          schema_pkg_apis_core_v1alpha1_SecretBinding(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBindingList":                      schema_pkg_apis_core_v1alpha1_SecretBindingList(ref),
+		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBindingProvider":                  schema_pkg_apis_core_v1alpha1_SecretBindingProvider(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.Seed":                                   schema_pkg_apis_core_v1alpha1_Seed(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SeedBackup":                             schema_pkg_apis_core_v1alpha1_SeedBackup(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SeedDNS":                                schema_pkg_apis_core_v1alpha1_SeedDNS(ref),
@@ -283,6 +284,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceWatchCacheSize":                  schema_pkg_apis_core_v1beta1_ResourceWatchCacheSize(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBinding":                           schema_pkg_apis_core_v1beta1_SecretBinding(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBindingList":                       schema_pkg_apis_core_v1beta1_SecretBindingList(ref),
+		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBindingProvider":                   schema_pkg_apis_core_v1beta1_SecretBindingProvider(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.Seed":                                    schema_pkg_apis_core_v1beta1_Seed(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SeedBackup":                              schema_pkg_apis_core_v1beta1_SeedBackup(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SeedDNS":                                 schema_pkg_apis_core_v1beta1_SeedDNS(ref),
@@ -5676,12 +5678,18 @@ func schema_pkg_apis_core_v1alpha1_SecretBinding(ref common.ReferenceCallback) c
 							},
 						},
 					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Provider defines the provider type of the SecretBinding.",
+							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBindingProvider"),
+						},
+					},
 				},
 				Required: []string{"secretRef"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.SecretReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBindingProvider", "k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.SecretReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -5733,6 +5741,28 @@ func schema_pkg_apis_core_v1alpha1_SecretBindingList(ref common.ReferenceCallbac
 		},
 		Dependencies: []string{
 			"github.com/gardener/gardener/pkg/apis/core/v1alpha1.SecretBinding", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_core_v1alpha1_SecretBindingProvider(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SecretBindingProvider defines the provider type of the SecretBinding.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type is the type of the provider.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
 	}
 }
 
@@ -12370,12 +12400,18 @@ func schema_pkg_apis_core_v1beta1_SecretBinding(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Provider defines the provider type of the SecretBinding.",
+							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBindingProvider"),
+						},
+					},
 				},
 				Required: []string{"secretRef"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.SecretReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBindingProvider", "k8s.io/api/core/v1.ObjectReference", "k8s.io/api/core/v1.SecretReference", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -12427,6 +12463,28 @@ func schema_pkg_apis_core_v1beta1_SecretBindingList(ref common.ReferenceCallback
 		},
 		Dependencies: []string{
 			"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBinding", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_SecretBindingProvider(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SecretBindingProvider defines the provider type of the SecretBinding.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type is the type of the provider.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
 	}
 }
 
