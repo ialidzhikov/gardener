@@ -781,6 +781,11 @@ func IsAPIServerExposureManaged(obj metav1.Object) bool {
 	return false
 }
 
+// GetSecretBindingTypes returns the SecretBinding provider types.
+func GetSecretBindingTypes(secretBinding *gardencorev1alpha1.SecretBinding) []string {
+	return strings.Split(secretBinding.Provider.Type, ",")
+}
+
 // SecretBindingHasType checks if the given SecretBinding has the given provider type.
 func SecretBindingHasType(secretBinding *gardencorev1alpha1.SecretBinding, toFind string) bool {
 	if secretBinding == nil {
@@ -790,7 +795,7 @@ func SecretBindingHasType(secretBinding *gardencorev1alpha1.SecretBinding, toFin
 		return false
 	}
 
-	types := strings.Split(secretBinding.Provider.Type, ",")
+	types := GetSecretBindingTypes(secretBinding)
 	if len(types) == 0 {
 		return false
 	}
@@ -807,7 +812,7 @@ func AddTypeToSecretBinding(secretBinding *gardencorev1alpha1.SecretBinding, toA
 		return
 	}
 
-	types := strings.Split(secretBinding.Provider.Type, ",")
+	types := GetSecretBindingTypes(secretBinding)
 	if !utils.ValueExists(toAdd, types) {
 		types = append(types, toAdd)
 	}
