@@ -29,6 +29,7 @@ var featureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	features.DisallowKubeconfigRotationForShootInDeletion: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // TODO (@acumino): remove DisallowKubeconfigRotationForShootInDeletion in v1.38.
 	features.WorkerPoolKubernetesVersion:                  {Default: false, PreRelease: featuregate.Alpha},
 	features.RequiredSecretBindingProvider:                {Default: false, PreRelease: featuregate.Alpha},
+	features.ImmutableSecretBindingProvider:               {Default: false, PreRelease: featuregate.Alpha},
 }
 
 // RegisterFeatureGates registers the feature gates of the Gardener API Server.
