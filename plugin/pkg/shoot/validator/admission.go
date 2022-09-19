@@ -272,8 +272,12 @@ func (v *ValidateShoot) Admit(ctx context.Context, a admission.Attributes, o adm
 	if err := validationContext.validateProjectMembership(a); err != nil {
 		return err
 	}
-	if err := validationContext.validateScheduling(ctx, a, v.authorizer, v.shootLister); err != nil {
-		return err
+	schedulingErrs, err := validationContext.validateScheduling(ctx, a, v.authorizer, v.shootLister)
+	if err != nil {
+		return apierrors.NewInternalError(err)
+	}
+	if len(schedulingErrs) > 0 {
+		return admission.NewForbidden(a, fmt.Errorf("%+v", schedulingErrs))
 	}
 	if err := validationContext.validateDeletion(a); err != nil {
 		return err
@@ -357,18 +361,24 @@ func (c *validationContext) validateProjectMembership(a admission.Attributes) er
 // validateSeedSelectionForHAShoot validates the seed assigned for the shoot based on the following criteria:
 // 1. A HA shoot with failure tolerance of 'zone' can only be scheduled on multi-zonal seeds
 // 2. A HA shoot with failure tolerance of 'node' or a non-HA shoot can be scheduled onto a multi-zonal as well as non-multi-zonal seed.
-func (c *validationContext) validateSeedSelectionForHAShoot() error {
-	isMultiZonalSeed := metav1.HasLabel(c.seed.ObjectMeta, v1beta1constants.LabelSeedMultiZonal)
+func (c *validationContext) validateSeedSelectionForHAShoot() field.ErrorList {
+	var (
+		isMultiZonalSeed = metav1.HasLabel(c.seed.ObjectMeta, v1beta1constants.LabelSeedMultiZonal)
+
+		allErrs field.ErrorList
+		path    = field.NewPath("spec", "seedName")
+	)
 
 	if helper.IsMultiZonalShootControlPlane(c.shoot) && !isMultiZonalSeed {
-		return fmt.Errorf("cannot schedule shoot '%s' with failure tolerance of zone on a non multi-zonal seed '%s'", c.shoot.Name, c.seed.Name)
+		detail := fmt.Sprintf("cannot schedule shoot '%s' with failure tolerance of zone on a non multi-zonal seed '%s'", c.shoot.Name, c.seed.Name)
+		allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
 	}
-	return nil
+	return allErrs
 }
 
-func (c *validationContext) validateScheduling(ctx context.Context, a admission.Attributes, authorizer authorizer.Authorizer, shootLister corelisters.ShootLister) error {
+func (c *validationContext) validateScheduling(ctx context.Context, a admission.Attributes, authorizer authorizer.Authorizer, shootLister corelisters.ShootLister) (field.ErrorList, error) {
 	if a.GetOperation() == admission.Delete {
-		return nil
+		return nil, nil
 	}
 
 	// If there is already a seedName in the shoot yaml, the scheduler will not create the Binding
@@ -377,41 +387,59 @@ func (c *validationContext) validateScheduling(ctx context.Context, a admission.
 		shootIsBeingScheduled          = c.oldShoot.Spec.SeedName == nil && c.shoot.Spec.SeedName != nil
 		shootIsBeingRescheduled        = c.oldShoot.Spec.SeedName != nil && c.shoot.Spec.SeedName != nil && *c.shoot.Spec.SeedName != *c.oldShoot.Spec.SeedName
 		mustCheckSchedulingConstraints = shootIsBeingScheduled || shootIsBeingRescheduled
+
+		allErrs field.ErrorList
+		path    = field.NewPath("spec", "seedName")
 	)
 
 	if shootIsBeingScheduled {
 		if a.GetOperation() == admission.Create {
-			if err := authorize(ctx, a, authorizer, "set .spec.seedName"); err != nil {
-				return err
+			authorizeErrs, err := authorize(ctx, a, authorizer, "set .spec.seedName")
+			if err != nil {
+				return nil, err
+			}
+			if len(authorizeErrs) > 0 {
+				allErrs = append(allErrs, authorizeErrs...)
+				// exit early, all other validation errors will be misleading
+				return allErrs, nil
 			}
 		}
 
 		if c.seed.DeletionTimestamp != nil {
-			return admission.NewForbidden(a, fmt.Errorf("cannot schedule shoot '%s' on seed '%s' that is already marked for deletion", c.shoot.Name, c.seed.Name))
+			detail := fmt.Sprintf("cannot schedule shoot '%s' on seed '%s' that is already marked for deletion", c.shoot.Name, c.seed.Name)
+			allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
 		}
 
 		if !helper.TaintsAreTolerated(c.seed.Spec.Taints, c.shoot.Spec.Tolerations) {
-			return admission.NewForbidden(a, fmt.Errorf("forbidden to use a seeds whose taints are not tolerated by the shoot"))
+			detail := "forbidden to use a seeds whose taints are not tolerated by the shoot"
+			allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
 		}
 
 		if allocatableShoots, ok := c.seed.Status.Allocatable[core.ResourceShoots]; ok {
 			scheduledShoots, err := getNumberOfShootsOnSeed(shootLister, c.seed.Name)
 			if err != nil {
-				return apierrors.NewInternalError(err)
+				return nil, err
 			}
 
 			if scheduledShoots >= allocatableShoots.Value() {
-				return admission.NewForbidden(a, fmt.Errorf("cannot schedule shoot '%s' on seed '%s' that already has the maximum number of shoots scheduled on it (%d)", c.shoot.Name, c.seed.Name, allocatableShoots.Value()))
+				detail := fmt.Sprintf("cannot schedule shoot '%s' on seed '%s' that already has the maximum number of shoots scheduled on it (%d)", c.shoot.Name, c.seed.Name, allocatableShoots.Value())
+				allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
 			}
 		}
 	}
 
 	if !shootIsBeingRescheduled && !reflect.DeepEqual(c.oldShoot.Spec, c.shoot.Spec) {
 		if wasShootRescheduledToNewSeed(c.shoot) {
-			return admission.NewForbidden(a, fmt.Errorf("shoot spec cannot be changed because shoot has been rescheduled to a new seed"))
+			detail := "shoot spec cannot be changed because shoot has been rescheduled to a new seed"
+			allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
+			// exit early, all other validation errors will be misleading
+			return allErrs, nil
 		}
 		if isShootInMigrationOrRestorePhase(c.shoot) && !reflect.DeepEqual(c.oldShoot.Spec, c.shoot.Spec) {
-			return admission.NewForbidden(a, fmt.Errorf("cannot change shoot spec during %s operation that is in state %s", c.shoot.Status.LastOperation.Type, c.shoot.Status.LastOperation.State))
+			detail := fmt.Sprintf("cannot change shoot spec during %s operation that is in state %s", c.shoot.Status.LastOperation.Type, c.shoot.Status.LastOperation.State)
+			allErrs = append(allErrs, field.Invalid(path, c.seed.Name, detail))
+			// exit early, all other validation errors will be misleading
+			return allErrs, nil
 		}
 	}
 
@@ -434,40 +462,46 @@ func (c *validationContext) validateScheduling(ctx context.Context, a admission.
 			}
 
 			if !apiequality.Semantic.DeepEqual(newMeta.Annotations, oldMeta.Annotations) {
-				return admission.NewForbidden(a, fmt.Errorf("cannot update annotations of shoot '%s' on seed '%s' already marked for deletion: only the '%s' annotation can be changed", c.shoot.Name, c.seed.Name, gutil.ConfirmationDeletion))
+				detail := fmt.Sprintf("cannot update annotations of shoot '%s' on seed '%s' already marked for deletion: only the '%s' annotation can be changed", c.shoot.Name, c.seed.Name, gutil.ConfirmationDeletion)
+				allErrs = append(allErrs, field.Forbidden(field.NewPath("metadata", "annotations"), detail))
+				// exit early, all other validation errors will be misleading
+				return allErrs, nil
 			}
 		}
 
 		if !apiequality.Semantic.DeepEqual(c.shoot.Spec, c.oldShoot.Spec) {
-			return admission.NewForbidden(a, fmt.Errorf("cannot update spec of shoot '%s' on seed '%s' already marked for deletion", c.shoot.Name, c.seed.Name))
+			detail := fmt.Sprintf("cannot update spec of shoot '%s' on seed '%s' already marked for deletion", c.shoot.Name, c.seed.Name)
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("spec"), detail))
+			// exit early, all other validation errors will be misleading
+			return allErrs, nil
 		}
 	}
 
 	if c.seed != nil {
-		if err := c.validateSeedSelectionForHAShoot(); err != nil {
-			return admission.NewForbidden(a, err)
-		}
+		allErrs = append(allErrs, c.validateSeedSelectionForHAShoot()...)
 	}
 
 	if mustCheckSchedulingConstraints {
 		if seedSelector := c.cloudProfile.Spec.SeedSelector; seedSelector != nil {
 			selector, err := metav1.LabelSelectorAsSelector(&seedSelector.LabelSelector)
 			if err != nil {
-				return apierrors.NewInternalError(fmt.Errorf("label selector conversion failed: %v for seedSelector: %w", seedSelector.LabelSelector, err))
+				return nil, fmt.Errorf("label selector conversion failed: %v for seedSelector: %w", seedSelector.LabelSelector, err)
 			}
 			if !selector.Matches(labels.Set(c.seed.Labels)) {
-				return admission.NewForbidden(a, fmt.Errorf("cannot schedule shoot '%s' on seed '%s' because the seed selector of cloud profile '%s' is not matching the labels of the seed", c.shoot.Name, c.seed.Name, c.cloudProfile.Name))
+				detail := fmt.Sprintf("cannot schedule shoot '%s' on seed '%s' because the seed selector of cloud profile '%s' is not matching the labels of the seed", c.shoot.Name, c.seed.Name, c.cloudProfile.Name)
+				allErrs = append(allErrs, field.Invalid(path, c.shoot.Spec.SeedName, detail))
 			}
 
 			if seedSelector.ProviderTypes != nil {
 				if !sets.NewString(seedSelector.ProviderTypes...).HasAny(c.seed.Spec.Provider.Type, "*") {
-					return admission.NewForbidden(a, fmt.Errorf("cannot schedule shoot '%s' on seed '%s' because none of the provider types in the seed selector of cloud profile '%s' is matching the provider type of the seed", c.shoot.Name, c.seed.Name, c.cloudProfile.Name))
+					detail := fmt.Sprintf("cannot schedule shoot '%s' on seed '%s' because none of the provider types in the seed selector of cloud profile '%s' is matching the provider type of the seed", c.shoot.Name, c.seed.Name, c.cloudProfile.Name)
+					allErrs = append(allErrs, field.Invalid(path, c.shoot.Spec.SeedName, detail))
 				}
 			}
 		}
 	}
 
-	return nil
+	return allErrs, nil
 }
 
 func getNumberOfShootsOnSeed(shootLister corelisters.ShootLister, seedName string) (int64, error) {
@@ -480,7 +514,7 @@ func getNumberOfShootsOnSeed(shootLister corelisters.ShootLister, seedName strin
 	return int64(seedUsage[seedName]), nil
 }
 
-func authorize(ctx context.Context, a admission.Attributes, auth authorizer.Authorizer, operation string) error {
+func authorize(ctx context.Context, a admission.Attributes, auth authorizer.Authorizer, operation string) (field.ErrorList, error) {
 	var (
 		userInfo  = a.GetUserInfo()
 		resource  = a.GetResource()
@@ -500,14 +534,19 @@ func authorize(ctx context.Context, a admission.Attributes, auth authorizer.Auth
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var (
+		allErrs field.ErrorList
+		path    = field.NewPath("spec", "seedName")
+	)
 	if decision != authorizer.DecisionAllow {
-		return admission.NewForbidden(a, fmt.Errorf("user %q is not allowed to %s for %q", userInfo.GetName(), operation, resource.Resource))
+		detail := fmt.Sprintf("user %q is not allowed to %s for %q", userInfo.GetName(), operation, resource.Resource)
+		allErrs = append(allErrs, field.Forbidden(path, detail))
 	}
 
-	return nil
+	return allErrs, nil
 }
 
 func (c *validationContext) validateDeletion(a admission.Attributes) error {
