@@ -12,23 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package features
+package endpointslicehints_test
 
 import (
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/component-base/featuregate"
+	"testing"
 
-	"github.com/gardener/gardener/pkg/features"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-// FeatureGate is a shared global FeatureGate for Gardener Operator flags.
-var FeatureGate = featuregate.NewFeatureGate()
-
-// RegisterFeatureGates registers the feature gates of the Gardener Operator.
-func RegisterFeatureGates() {
-	utilruntime.Must(FeatureGate.Add(features.GetFeatures(
-		features.DefaultSeccompProfile,
-		features.HVPA,
-		features.TopologyAwareRouting,
-	)))
+func TestEndpointSliceHints(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "ResourceManager Webhook EndpointSliceHints Suite")
 }

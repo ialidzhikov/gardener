@@ -135,6 +135,10 @@ const (
 	// PodTopologySpreadConstraintsSkip is a constant for a label on a Pod which indicates that this Pod should not be considered for
 	// adding the pod-template-hash selector to the topology spread constraint.
 	PodTopologySpreadConstraintsSkip = "topology-spread-constraints.resources.gardener.cloud/skip"
+
+	// EndpointSliceHintsConsider is a constsant for a label on a EndpointSlice which indicates that this EndpointSlice
+	// should be considered by the EndpointSlice hints webhook.
+	EndpointSliceHintsConsider = "endpoint-slice-hints.resources.gardener.cloud/consider"
 )
 
 // +kubebuilder:resource:shortName="mr"

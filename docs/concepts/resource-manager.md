@@ -666,6 +666,38 @@ Gardener enables this webhook to schedule pods of deployments across nodes and z
 
 Please note, the `gardener-resource-manager` itself as well as pods labelled with `topology-spread-constraints.resources.gardener.cloud/skip` are excluded from any mutations.
 
+#### EndpointSlice Hints
+
+This webhook mutates [`EndpointSlice`s](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/). For each enpoint in the EndpointSlice it sets the endpoint's hints to the endpoint's zone.
+
+```yaml
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: example-hints
+endpoints:
+- addresses:
+  - "10.1.2.3"
+  conditions:
+    ready: true
+  hostname: pod-1
+  zone: zone-a
+  hints:
+    forZones:
+    - name: "zone-a" # added by webhook
+- addresses:
+  - "10.1.2.4"
+  conditions:
+    ready: true
+  hostname: pod-2
+  zone: zone-b
+  hints:
+    forZones:
+    - name: "zone-b" # added by webhook
+```
+
+The webhook aims to circumvents issues with the Kubernetes `TopologyAwareHints` feature that currently does not allow to achieve a deterministic topology-aware traffic routing. For more details, see the following issue [kubernetes/kubernetes#113731](https://github.com/kubernetes/kubernetes/issues/113731) that describes drawbacks of the `TopologyAwareHints` feature for our use case.
+
 ### Validating Webhooks
 
 #### Unconfirmed Deletion Prevention For Custom Resources And Definitions

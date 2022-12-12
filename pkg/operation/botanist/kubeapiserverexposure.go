@@ -40,8 +40,9 @@ func (b *Botanist) newKubeAPIServiceServiceComponent(sniPhase component.Phase) c
 		b.Logger,
 		b.SeedClientSet.Client(),
 		&kubeapiserverexposure.ServiceValues{
-			Annotations: b.getKubeAPIServerServiceAnnotations(sniPhase),
-			SNIPhase:    sniPhase,
+			Annotations:                 b.getKubeAPIServerServiceAnnotations(sniPhase),
+			SNIPhase:                    sniPhase,
+			TopologyAwareRoutingEnabled: gardenletfeatures.FeatureGate.Enabled(features.TopologyAwareRouting),
 		},
 		client.ObjectKey{Name: v1beta1constants.DeploymentNameKubeAPIServer, Namespace: b.Shoot.SeedNamespace},
 		sniServiceKey,

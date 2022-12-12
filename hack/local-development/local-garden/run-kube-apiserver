@@ -11,7 +11,7 @@ fi
 LABEL=${1:-local-garden}
 ACTIVATE_SEEDAUTHORIZER=${2:-false}
 
-IMAGE=registry.k8s.io/kube-apiserver:v1.22.3
+IMAGE=registry.k8s.io/kube-apiserver:v1.23.9
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 MOUNTS="-v $SCRIPTPATH/certificates/certs:/certs -v $SCRIPTPATH/certificates/keys:/keys -v $SCRIPTPATH/configs:/configs"
 ETCD_PORT=12379
@@ -67,4 +67,5 @@ docker run -d --name kube-apiserver -l $LABEL $ADD_HOSTS --network gardener-dev 
   --service-account-signing-key-file="/keys/sa.key" \
   --service-account-issuer="local-garden" \
   --service-cluster-ip-range="10.0.0.0/24" \
-  --secure-port=$LISTEN_PORT
+  --secure-port=$LISTEN_PORT \
+  --feature-gates=TopologyAwareHints=true

@@ -154,6 +154,7 @@ var _ = Describe("Etcd", func() {
 								MaintenanceTimeWindow: maintenanceTimeWindow,
 								ScaleDownUpdateMode:   pointer.String(computeUpdateMode(class, purpose)),
 							}),
+							expectedTopologyAwareRoutingEnabled: Equal(false),
 						}
 
 						oldNewEtcd := NewEtcd
@@ -193,6 +194,7 @@ var _ = Describe("Etcd", func() {
 						MaintenanceTimeWindow: maintenanceTimeWindow,
 						ScaleDownUpdateMode:   pointer.String(hvpav1alpha1.UpdateModeMaintenanceWindow),
 					}),
+					expectedTopologyAwareRoutingEnabled: Equal(false),
 				}
 
 				oldNewEtcd := NewEtcd
@@ -224,6 +226,7 @@ var _ = Describe("Etcd", func() {
 						MaintenanceTimeWindow: maintenanceTimeWindow,
 						ScaleDownUpdateMode:   pointer.String(hvpav1alpha1.UpdateModeMaintenanceWindow),
 					}),
+					expectedTopologyAwareRoutingEnabled: Equal(false),
 				}
 
 				oldNewEtcd := NewEtcd
@@ -246,6 +249,40 @@ var _ = Describe("Etcd", func() {
 			etcd, err := botanist.DefaultEtcd(role, class)
 			Expect(etcd).To(BeNil())
 			Expect(err).To(HaveOccurred())
+		})
+
+		Context("when TopologyAwareRouting feature is enabled", func() {
+			It("should successfully create an etcd interface", func() {
+				class := etcd.ClassImportant
+
+				defer test.WithFeatureGate(gardenletfeatures.FeatureGate, features.TopologyAwareRouting, true)()
+
+				validator := &newEtcdValidator{
+					expectedClient:                  Equal(c),
+					expectedLogger:                  BeAssignableToTypeOf(logr.Logger{}),
+					expectedNamespace:               Equal(namespace),
+					expectedSecretsManager:          Equal(sm),
+					expectedRole:                    Equal(role),
+					expectedClass:                   Equal(class),
+					expectedReplicas:                PointTo(Equal(int32(1))),
+					expectedStorageCapacity:         Equal("10Gi"),
+					expectedDefragmentationSchedule: Equal(pointer.String("34 12 */3 * *")),
+					expectedHVPAConfig: Equal(&etcd.HVPAConfig{
+						Enabled:               false,
+						MaintenanceTimeWindow: maintenanceTimeWindow,
+						ScaleDownUpdateMode:   pointer.String(hvpav1alpha1.UpdateModeMaintenanceWindow),
+					}),
+					expectedTopologyAwareRoutingEnabled: Equal(true),
+				}
+
+				oldNewEtcd := NewEtcd
+				defer func() { NewEtcd = oldNewEtcd }()
+				NewEtcd = validator.NewEtcd
+
+				etcd, err := botanist.DefaultEtcd(role, class)
+				Expect(etcd).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+			})
 		})
 	})
 
@@ -451,16 +488,17 @@ var _ = Describe("Etcd", func() {
 type newEtcdValidator struct {
 	etcd.Interface
 
-	expectedClient                  gomegatypes.GomegaMatcher
-	expectedLogger                  gomegatypes.GomegaMatcher
-	expectedNamespace               gomegatypes.GomegaMatcher
-	expectedSecretsManager          gomegatypes.GomegaMatcher
-	expectedRole                    gomegatypes.GomegaMatcher
-	expectedClass                   gomegatypes.GomegaMatcher
-	expectedReplicas                gomegatypes.GomegaMatcher
-	expectedStorageCapacity         gomegatypes.GomegaMatcher
-	expectedDefragmentationSchedule gomegatypes.GomegaMatcher
-	expectedHVPAConfig              gomegatypes.GomegaMatcher
+	expectedClient                      gomegatypes.GomegaMatcher
+	expectedLogger                      gomegatypes.GomegaMatcher
+	expectedNamespace                   gomegatypes.GomegaMatcher
+	expectedSecretsManager              gomegatypes.GomegaMatcher
+	expectedRole                        gomegatypes.GomegaMatcher
+	expectedClass                       gomegatypes.GomegaMatcher
+	expectedReplicas                    gomegatypes.GomegaMatcher
+	expectedStorageCapacity             gomegatypes.GomegaMatcher
+	expectedDefragmentationSchedule     gomegatypes.GomegaMatcher
+	expectedHVPAConfig                  gomegatypes.GomegaMatcher
+	expectedTopologyAwareRoutingEnabled gomegatypes.GomegaMatcher
 }
 
 func (v *newEtcdValidator) NewEtcd(
@@ -479,6 +517,7 @@ func (v *newEtcdValidator) NewEtcd(
 	Expect(values.Replicas).To(v.expectedReplicas)
 	Expect(values.StorageCapacity).To(v.expectedStorageCapacity)
 	Expect(values.DefragmentationSchedule).To(v.expectedDefragmentationSchedule)
+	Expect(values.TopologyAwareRoutingEnabled).To(v.expectedTopologyAwareRoutingEnabled)
 
 	return v
 }

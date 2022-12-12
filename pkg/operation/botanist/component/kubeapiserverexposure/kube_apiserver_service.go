@@ -20,6 +20,7 @@ import (
 	"time"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/operation/botanist/component/kubeapiserver"
@@ -37,16 +38,19 @@ import (
 type ServiceValues struct {
 	Annotations map[string]string
 	SNIPhase    component.Phase
+	// TopologyAwareRoutingEnabled indicates whether topology-aware routing is enabled for the kube-apiserver service.
+	TopologyAwareRoutingEnabled bool
 }
 
 // serviceValues configure the kube-apiserver service.
 // this one is not exposed as not all values should be configured
 // from the outside.
 type serviceValues struct {
-	annotations     map[string]string
-	serviceType     corev1.ServiceType
-	enableSNI       bool
-	gardenerManaged bool
+	annotations                 map[string]string
+	serviceType                 corev1.ServiceType
+	enableSNI                   bool
+	gardenerManaged             bool
+	topologyAwareRoutingEnabled bool
 }
 
 // NewService creates a new instance of DeployWaiter for the Service used to expose the kube-apiserver.
@@ -105,6 +109,7 @@ func NewService(
 		}
 
 		internalValues.annotations = values.Annotations
+		internalValues.topologyAwareRoutingEnabled = values.TopologyAwareRoutingEnabled
 	}
 
 	return &service{
@@ -142,6 +147,10 @@ func (s *service) Deploy(ctx context.Context) error {
 		obj.Labels = getLabels()
 		if s.values.gardenerManaged {
 			metav1.SetMetaDataLabel(&obj.ObjectMeta, v1beta1constants.LabelAPIServerExposure, v1beta1constants.LabelAPIServerExposureGardenerManaged)
+		}
+		if s.values.topologyAwareRoutingEnabled {
+			metav1.SetMetaDataAnnotation(&obj.ObjectMeta, corev1.AnnotationTopologyAwareHints, "auto")
+			metav1.SetMetaDataLabel(&obj.ObjectMeta, resourcesv1alpha1.EndpointSliceHintsConsider, "true")
 		}
 
 		obj.Spec.Type = s.values.serviceType

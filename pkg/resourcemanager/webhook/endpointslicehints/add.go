@@ -12,23 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package features
+package endpointslicehints
 
 import (
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/component-base/featuregate"
-
-	"github.com/gardener/gardener/pkg/features"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// FeatureGate is a shared global FeatureGate for Gardener Operator flags.
-var FeatureGate = featuregate.NewFeatureGate()
+const (
+	// HandlerName is the name of this webhook handler.
+	HandlerName = "endpoint-slice-hints"
+	// WebhookPath is the path at which the handler should be registered.
+	WebhookPath = "/webhooks/default-endpoint-slice-hints"
+)
 
-// RegisterFeatureGates registers the feature gates of the Gardener Operator.
-func RegisterFeatureGates() {
-	utilruntime.Must(FeatureGate.Add(features.GetFeatures(
-		features.DefaultSeccompProfile,
-		features.HVPA,
-		features.TopologyAwareRouting,
-	)))
+// AddToManager adds Handler to the given manager.
+func (h *Handler) AddToManager(mgr manager.Manager) error {
+	webhook := admission.
+		WithCustomDefaulter(&discoveryv1.EndpointSlice{}, h).
+		WithRecoverPanic(true)
+
+	mgr.GetWebhookServer().Register(WebhookPath, webhook)
+	return nil
 }

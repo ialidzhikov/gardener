@@ -137,7 +137,7 @@ var _ = Describe("VPA", func() {
 		clusterRoleAdmissionController         *rbacv1.ClusterRole
 		clusterRoleBindingAdmissionController  *rbacv1.ClusterRoleBinding
 		shootAccessSecretAdmissionController   *corev1.Secret
-		serviceAdmissionController             *corev1.Service
+		serviceAdmissionControllerFor          func(bool) *corev1.Service
 		networkPolicyAdmissionController       *networkingv1.NetworkPolicy
 		deploymentAdmissionControllerFor       func(bool, component.ClusterType) *appsv1.Deployment
 		podDisruptionBudgetAdmissionController *policyv1.PodDisruptionBudget
@@ -784,22 +784,31 @@ var _ = Describe("VPA", func() {
 			},
 			Type: corev1.SecretTypeOpaque,
 		}
-		serviceAdmissionController = &corev1.Service{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "Service",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "vpa-webhook",
-				Namespace: namespace,
-			},
-			Spec: corev1.ServiceSpec{
-				Selector: map[string]string{"app": "vpa-admission-controller"},
-				Ports: []corev1.ServicePort{{
-					Port:       443,
-					TargetPort: intstr.FromInt(10250),
-				}},
-			},
+		serviceAdmissionControllerFor = func(topologyAwareRoutingEnabled bool) *corev1.Service {
+			obj := &corev1.Service{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Service",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "vpa-webhook",
+					Namespace: namespace,
+				},
+				Spec: corev1.ServiceSpec{
+					Selector: map[string]string{"app": "vpa-admission-controller"},
+					Ports: []corev1.ServicePort{{
+						Port:       443,
+						TargetPort: intstr.FromInt(10250),
+					}},
+				},
+			}
+
+			if topologyAwareRoutingEnabled {
+				metav1.SetMetaDataAnnotation(&obj.ObjectMeta, corev1.AnnotationTopologyAwareHints, "auto")
+				metav1.SetMetaDataLabel(&obj.ObjectMeta, resourcesv1alpha1.EndpointSliceHintsConsider, "true")
+			}
+
+			return obj
 		}
 		networkPolicyAdmissionController = &networkingv1.NetworkPolicy{
 			TypeMeta: metav1.TypeMeta{
@@ -1364,7 +1373,7 @@ var _ = Describe("VPA", func() {
 				Expect(string(managedResourceSecret.Data["serviceaccount__"+namespace+"__vpa-admission-controller.yaml"])).To(Equal(componenttest.Serialize(serviceAccountAdmissionController)))
 				Expect(string(managedResourceSecret.Data["clusterrole____gardener.cloud_vpa_source_admission-controller.yaml"])).To(Equal(componenttest.Serialize(clusterRoleAdmissionController)))
 				Expect(string(managedResourceSecret.Data["clusterrolebinding____gardener.cloud_vpa_source_admission-controller.yaml"])).To(Equal(componenttest.Serialize(clusterRoleBindingAdmissionController)))
-				Expect(string(managedResourceSecret.Data["service__"+namespace+"__vpa-webhook.yaml"])).To(Equal(componenttest.Serialize(serviceAdmissionController)))
+				Expect(string(managedResourceSecret.Data["service__"+namespace+"__vpa-webhook.yaml"])).To(Equal(componenttest.Serialize(serviceAdmissionControllerFor(false))))
 				Expect(string(managedResourceSecret.Data["deployment__"+namespace+"__vpa-admission-controller.yaml"])).To(Equal(componenttest.Serialize(deploymentAdmissionController)))
 				Expect(string(managedResourceSecret.Data["poddisruptionbudget__"+namespace+"__vpa-admission-controller.yaml"])).To(Equal(componenttest.Serialize(podDisruptionBudgetAdmissionController)))
 				Expect(string(managedResourceSecret.Data["verticalpodautoscaler__"+namespace+"__vpa-admission-controller.yaml"])).To(Equal(componenttest.Serialize(vpaAdmissionController)))
@@ -1568,7 +1577,8 @@ var _ = Describe("VPA", func() {
 				Expect(secret).To(Equal(shootAccessSecretAdmissionController))
 
 				service := &corev1.Service{}
-				Expect(c.Get(ctx, client.ObjectKeyFromObject(serviceAdmissionController), service)).To(Succeed())
+				Expect(c.Get(ctx, kutil.Key(namespace, "vpa-webhook"), service)).To(Succeed())
+				serviceAdmissionController := serviceAdmissionControllerFor(false)
 				serviceAdmissionController.ResourceVersion = "1"
 				Expect(service).To(Equal(serviceAdmissionController))
 
@@ -1607,6 +1617,29 @@ var _ = Describe("VPA", func() {
 				Expect(string(managedResourceSecret.Data["mutatingwebhookconfiguration____vpa-webhook-config-target.yaml"])).To(Equal(componenttest.Serialize(mutatingWebhookConfiguration)))
 				Expect(string(managedResourceSecret.Data["crd-verticalpodautoscalercheckpoints.yaml"])).To(Equal(crdVPACheckpoints))
 				Expect(string(managedResourceSecret.Data["crd-verticalpodautoscalers.yaml"])).To(Equal(crdVPA))
+			})
+
+			Context("when TopologyAwareRoutingEnabled=true", func() {
+				It("should successfully deploy with expected vpa-webhook service annotations and labels", func() {
+					valuesAdmissionController.TopologyAwareRoutingEnabled = true
+					vpa = New(c, namespace, sm, Values{
+						ClusterType:              component.ClusterTypeShoot,
+						Enabled:                  true,
+						SecretNameServerCA:       secretNameCA,
+						RuntimeKubernetesVersion: runtimeKubernetesVersion,
+						AdmissionController:      valuesAdmissionController,
+						Recommender:              valuesRecommender,
+						Updater:                  valuesUpdater,
+					})
+
+					Expect(vpa.Deploy(ctx)).To(Succeed())
+
+					service := &corev1.Service{}
+					Expect(c.Get(ctx, kutil.Key(namespace, "vpa-webhook"), service)).To(Succeed())
+					serviceAdmissionController := serviceAdmissionControllerFor(true)
+					serviceAdmissionController.ResourceVersion = "1"
+					Expect(service).To(Equal(serviceAdmissionController))
+				})
 			})
 		})
 	})
@@ -1648,7 +1681,7 @@ var _ = Describe("VPA", func() {
 				Expect(c.Create(ctx, vpaRecommender)).To(Succeed())
 
 				By("creating vpa-admission-controller runtime resources")
-				Expect(c.Create(ctx, serviceAdmissionController)).To(Succeed())
+				Expect(c.Create(ctx, serviceAdmissionControllerFor(false))).To(Succeed())
 				Expect(c.Create(ctx, networkPolicyAdmissionController)).To(Succeed())
 				Expect(c.Create(ctx, deploymentAdmissionControllerFor(true, component.ClusterTypeShoot))).To(Succeed())
 				Expect(c.Create(ctx, podDisruptionBudgetAdmissionController)).To(Succeed())
@@ -1668,7 +1701,7 @@ var _ = Describe("VPA", func() {
 				Expect(c.Get(ctx, client.ObjectKeyFromObject(vpaRecommender), &vpaautoscalingv1.VerticalPodAutoscaler{})).To(BeNotFoundError())
 
 				By("checking vpa-admission-controller runtime resources")
-				Expect(c.Get(ctx, client.ObjectKeyFromObject(serviceAdmissionController), &corev1.Service{})).To(BeNotFoundError())
+				Expect(c.Get(ctx, client.ObjectKeyFromObject(serviceAdmissionControllerFor(false)), &corev1.Service{})).To(BeNotFoundError())
 				Expect(c.Get(ctx, client.ObjectKeyFromObject(networkPolicyAdmissionController), &networkingv1.NetworkPolicy{})).To(BeNotFoundError())
 				Expect(c.Get(ctx, client.ObjectKeyFromObject(deploymentAdmissionControllerFor(true, component.ClusterTypeShoot)), &appsv1.Deployment{})).To(BeNotFoundError())
 				Expect(c.Get(ctx, client.ObjectKeyFromObject(podDisruptionBudgetAdmissionController), &policyv1.PodDisruptionBudget{})).To(BeNotFoundError())

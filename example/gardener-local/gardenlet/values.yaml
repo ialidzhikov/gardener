@@ -37,6 +37,8 @@ config:
     CopyEtcdBackupsDuringControlPlaneMigration: true
     DefaultSeccompProfile: true
     CoreDNSQueryRewriting: true
+    # TODO: decide whether it should be true or false
+    TopologyAwareRouting: false
   logging:
     enabled: true
     loki:

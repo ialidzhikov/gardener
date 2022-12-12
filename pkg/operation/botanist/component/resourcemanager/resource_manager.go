@@ -58,6 +58,7 @@ import (
 	resourcemanagerconfigv1alpha1 "github.com/gardener/gardener/pkg/resourcemanager/apis/config/v1alpha1"
 	"github.com/gardener/gardener/pkg/resourcemanager/controller/garbagecollector/references"
 	"github.com/gardener/gardener/pkg/resourcemanager/webhook/crddeletionprotection"
+	"github.com/gardener/gardener/pkg/resourcemanager/webhook/endpointslicehints"
 	"github.com/gardener/gardener/pkg/resourcemanager/webhook/extensionvalidation"
 	"github.com/gardener/gardener/pkg/resourcemanager/webhook/highavailabilityconfig"
 	"github.com/gardener/gardener/pkg/resourcemanager/webhook/podschedulername"
@@ -75,6 +76,7 @@ import (
 	"github.com/gardener/gardener/pkg/utils/secrets"
 	secretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager"
 	"github.com/gardener/gardener/pkg/utils/version"
+	discoveryv1 "k8s.io/api/discovery/v1"
 )
 
 var (
@@ -280,12 +282,17 @@ type Values struct {
 	SchedulingProfile *gardencorev1beta1.SchedulingProfile
 	// DefaultSeccompProfileEnabled specifies if the defaulting seccomp profile webhook of GRM should be enabled or not.
 	DefaultSeccompProfileEnabled bool
+	// DefaultEndpointSliceHintsEnabled specifies if the defaulting EndpointSlice hints webhook of GRM should be enabled or not.
+	DefaultEndpointSliceHintsEnabled bool
 	// PodTopologySpreadConstraintsEnabled specifies if the pod's TSC should be mutated to support rolling updates.
 	PodTopologySpreadConstraintsEnabled bool
 	// FailureToleranceType determines the failure tolerance type for the resource manager deployment.
 	FailureToleranceType *gardencorev1beta1.FailureToleranceType
 	// Zones is number of availability zones.
 	Zones []string
+	// TopologyAwareRoutingEnabled indicates whether topology-aware routing is enabled for the gardener-resource-manager service.
+	// This value is only applicable for the GRM that is deployed in the Shoot control plane (when TargetDiffersFromSourceCluster=true).
+	TopologyAwareRoutingEnabled bool
 }
 
 // VPAConfig contains information for configuring VerticalPodAutoscaler settings for the gardener-resource-manager deployment.
@@ -527,6 +534,9 @@ func (r *resourceManager) ensureConfigMap(ctx context.Context, configMap *corev1
 			},
 		},
 		Webhooks: resourcemanagerconfigv1alpha1.ResourceManagerWebhookConfiguration{
+			EndpointSliceHints: resourcemanagerconfigv1alpha1.EndpointSliceHintsWebhookConfig{
+				Enabled: r.values.DefaultEndpointSliceHintsEnabled,
+			},
 			HighAvailabilityConfig: resourcemanagerconfigv1alpha1.HighAvailabilityConfigWebhookConfig{
 				Enabled: true,
 			},
@@ -648,7 +658,16 @@ func (r *resourceManager) ensureService(ctx context.Context) error {
 
 	service := r.emptyService()
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, r.client, service, func() error {
-		service.Labels = r.getLabels()
+		fmt.Printf("inside = %+v\n", r.values.TopologyAwareRoutingEnabled && r.values.TargetDiffersFromSourceCluster)
+		fmt.Printf("inside1 = %+v\n", r.values.TopologyAwareRoutingEnabled)
+		fmt.Printf("inside2 = %+v\n", r.values.TargetDiffersFromSourceCluster)
+
+		if r.values.TopologyAwareRoutingEnabled && r.values.TargetDiffersFromSourceCluster {
+			metav1.SetMetaDataAnnotation(&service.ObjectMeta, corev1.AnnotationTopologyAwareHints, "auto")
+			metav1.SetMetaDataLabel(&service.ObjectMeta, resourcesv1alpha1.EndpointSliceHintsConsider, "true")
+		}
+
+		service.Labels = utils.MergeStringMaps(service.Labels, r.getLabels())
 		service.Spec.Selector = appLabel()
 		service.Spec.Type = corev1.ServiceTypeClusterIP
 		desiredPorts := []corev1.ServicePort{
@@ -1200,6 +1219,10 @@ func (r *resourceManager) getMutatingWebhookConfigurationWebhooks(
 		webhooks = append(webhooks, GetSeccompProfileMutatingWebhook(namespaceSelector, secretServerCA, buildClientConfigFn))
 	}
 
+	if r.values.DefaultEndpointSliceHintsEnabled {
+		webhooks = append(webhooks, GetEndpointSliceHintsMutatingWebhook(namespaceSelector, secretServerCA, buildClientConfigFn))
+	}
+
 	if r.values.PodTopologySpreadConstraintsEnabled {
 		webhooks = append(webhooks, GetPodTopologySpreadConstraintsMutatingWebhook(namespaceSelector, objectSelector, secretServerCA, buildClientConfigFn))
 	}
@@ -1683,6 +1706,47 @@ func GetHighAvailabilityConfigMutatingWebhook(namespaceSelector, objectSelector 
 		NamespaceSelector:       nsSelector,
 		ObjectSelector:          oSelector,
 		ClientConfig:            buildClientConfigFn(secretServerCA, highavailabilityconfig.WebhookPath),
+		AdmissionReviewVersions: []string{admissionv1beta1.SchemeGroupVersion.Version, admissionv1.SchemeGroupVersion.Version},
+		FailurePolicy:           &failurePolicy,
+		MatchPolicy:             &matchPolicy,
+		SideEffects:             &sideEffect,
+		TimeoutSeconds:          pointer.Int32(10),
+	}
+}
+
+// GetEndpointSliceHintsMutatingWebhook returns the endpoint-slice-hints mutating webhook for the resourcemanager component for reuse
+// between the component and integration tests.
+func GetEndpointSliceHintsMutatingWebhook(
+	namespaceSelector *metav1.LabelSelector,
+	secretServerCA *corev1.Secret,
+	buildClientConfigFn func(*corev1.Secret, string) admissionregistrationv1.WebhookClientConfig,
+) admissionregistrationv1.MutatingWebhook {
+	var (
+		failurePolicy = admissionregistrationv1.Ignore
+		matchPolicy   = admissionregistrationv1.Equivalent
+		sideEffect    = admissionregistrationv1.SideEffectClassNone
+	)
+
+	return admissionregistrationv1.MutatingWebhook{
+		Name: "endpoint-slice-hints.resources.gardener.cloud",
+		Rules: []admissionregistrationv1.RuleWithOperations{{
+			Rule: admissionregistrationv1.Rule{
+				APIGroups:   []string{discoveryv1.GroupName},
+				APIVersions: []string{discoveryv1.SchemeGroupVersion.Version},
+				Resources:   []string{"endpointslices"},
+			},
+			Operations: []admissionregistrationv1.OperationType{
+				admissionregistrationv1.Create,
+				admissionregistrationv1.Update,
+			},
+		}},
+		NamespaceSelector: namespaceSelector,
+		ObjectSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				resourcesv1alpha1.EndpointSliceHintsConsider: "true",
+			},
+		},
+		ClientConfig:            buildClientConfigFn(secretServerCA, endpointslicehints.WebhookPath),
 		AdmissionReviewVersions: []string{admissionv1beta1.SchemeGroupVersion.Version, admissionv1.SchemeGroupVersion.Version},
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,

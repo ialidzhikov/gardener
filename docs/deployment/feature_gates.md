@@ -38,6 +38,7 @@ The following tables are a summary of the feature gates that you can set on diff
 | HAControlPlanes                              | `false` | `Alpha` | `1.49` |        |
 | DefaultSeccompProfile                        | `false` | `Alpha` | `1.54` |        |
 | CoreDNSQueryRewriting                        | `false` | `Alpha` | `1.55` |        |
+| TopologyAwareRouting                         | `false` | `Alpha` | `tbd`  |        |
 
 ## Feature gates for graduated or deprecated features
 
@@ -159,3 +160,4 @@ A *General Availability* (GA) feature is also referred to as a *stable* feature.
 | HAControlPlanes                            | `gardener-apiserver`                                             | HAControlPlanes allows shoot control planes to be run in high availability mode. |
 | DefaultSeccompProfile                      | `gardenlet`, `gardener-operator`                                 | Enables the defaulting of the seccomp profile for Gardener managed workload in the garden or seed to `RuntimeDefault`. |
 | CoreDNSQueryRewriting                      | `gardenlet`                                                      | Enables automatic DNS query rewriting in shoot cluster's CoreDNS to shortcut name resolution of fully qualified in-cluster and out-of-cluster names, which follow a user-defined pattern. Details can be found in [DNS Search Path Optimization](../usage/dns-search-path-optimization.md). |
+| TopologyAwareRouting                       | `gardenlet`                                                      | Enables topology-aware traffic routing in garden or seed clusters using the Kubernetes feature `TopologyAwareHints`. Details can be found in [] |

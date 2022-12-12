@@ -98,6 +98,11 @@ const (
 	// owner: @ScheererJ @DockToFuture
 	// alpha: v1.55.0
 	CoreDNSQueryRewriting featuregate.Feature = "CoreDNSQueryRewriting"
+
+	// TopologyAwareRouting enables topology-aware traffic routing in garden or seed clusters using the Kubernetes feature `TopologyAwareHints`.
+	// owner: @ialidzhikov
+	// alpha: tbd
+	TopologyAwareRouting featuregate.Feature = "TopologyAwareRouting"
 )
 
 var allFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -112,6 +117,7 @@ var allFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	HAControlPlanes:       {Default: false, PreRelease: featuregate.Alpha},
 	DefaultSeccompProfile: {Default: false, PreRelease: featuregate.Alpha},
 	CoreDNSQueryRewriting: {Default: false, PreRelease: featuregate.Alpha},
+	TopologyAwareRouting:  {Default: false, PreRelease: featuregate.Alpha},
 }
 
 // GetFeatures returns a feature gate map with the respective specifications. Non-existing feature gates are ignored.

@@ -417,6 +417,7 @@ func (r *Reconciler) runReconcileSeedFlow(
 			v1beta1constants.SecretNameCASeed,
 			v1beta1constants.PriorityClassNameSeedSystemCritical,
 			gardenletfeatures.FeatureGate.Enabled(features.DefaultSeccompProfile),
+			gardenletfeatures.FeatureGate.Enabled(features.TopologyAwareRouting),
 			seed.GetInfo().Spec.Provider.Zones,
 		)
 		if err != nil {

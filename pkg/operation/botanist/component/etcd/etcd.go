@@ -40,6 +40,7 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenletconfig "github.com/gardener/gardener/pkg/gardenlet/apis/config"
@@ -173,6 +174,8 @@ type Values struct {
 	BackupConfig            *BackupConfig
 	HvpaConfig              *HVPAConfig
 	PriorityClassName       string
+	// TopologyAwareRoutingEnabled indicates whether topology-aware routing is enabled for the etcd client service.
+	TopologyAwareRoutingEnabled bool
 }
 
 func (e *etcd) hasHAControlPlane() bool {
@@ -473,6 +476,17 @@ func (e *etcd) Deploy(ctx context.Context) error {
 				ServerTLSSecretRef: corev1.SecretReference{
 					Name:      peerServerSecretName,
 					Namespace: e.namespace,
+				},
+			}
+		}
+
+		if e.values.TopologyAwareRoutingEnabled {
+			e.etcd.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{
+				Annotations: map[string]string{
+					corev1.AnnotationTopologyAwareHints: "auto",
+				},
+				Labels: map[string]string{
+					resourcesv1alpha1.EndpointSliceHintsConsider: "true",
 				},
 			}
 		}

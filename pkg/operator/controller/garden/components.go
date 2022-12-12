@@ -42,6 +42,7 @@ func (r *Reconciler) newGardenerResourceManager(garden *operatorv1alpha1.Garden,
 		operatorv1alpha1.SecretNameCARuntime,
 		v1beta1constants.PriorityClassNameGardenSystemCritical,
 		operatorfeatures.FeatureGate.Enabled(features.DefaultSeccompProfile),
+		operatorfeatures.FeatureGate.Enabled(features.TopologyAwareRouting),
 		garden.Spec.RuntimeCluster.Provider.Zones,
 	)
 }

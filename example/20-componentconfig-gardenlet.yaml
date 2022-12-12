@@ -123,6 +123,8 @@ featureGates:
   ForceRestore: false
   DefaultSeccompProfile: true
   CoreDNSQueryRewriting: true
+  # TODO: decide whether it should be true or false
+  TopologyAwareRouting: false
 # seedConfig:
 #   metadata:
 #     name: my-seed

@@ -87,7 +87,6 @@ require (
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/fluent/fluent-operator v1.7.0
-	github.com/frankban/quicktest v1.13.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
@@ -179,6 +178,7 @@ require github.com/go-openapi/errors v0.20.3 // indirect
 replace (
 	github.com/emicklei/go-restful/v3 => github.com/emicklei/go-restful/v3 v3.8.0 // keep this value in sync with k8s.io/apiserver
 	github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.9.4
+	github.com/gardener/etcd-druid => github.com/ialidzhikov/etcd-druid v0.1.1-0.20221207155750-cd38589eca29
 	github.com/gardener/hvpa-controller => github.com/gardener/hvpa-controller v0.5.0
 	github.com/gardener/hvpa-controller/api => github.com/gardener/hvpa-controller/api v0.5.0
 	github.com/google/gnostic => github.com/google/gnostic v0.5.7-v3refs // keep this value in sync with k8s.io/apiserver

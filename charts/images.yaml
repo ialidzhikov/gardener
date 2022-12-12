@@ -10,7 +10,8 @@ images:
   repository: eu.gcr.io/gardener-project/gardener/gardenlet
 - name: gardener-resource-manager
   sourceRepository: github.com/gardener/gardener
-  repository: eu.gcr.io/gardener-project/gardener/resource-manager
+  repository: innoweek/resource-manager
+  tag: v1.62.0-dev-9f13d07f23ebe459b4d2309281bf688ade7648ee-dirty
 
 # Seed bootstrap
 - name: pause-container
@@ -27,7 +28,7 @@ images:
 - name: etcd-druid
   sourceRepository: github.com/gardener/etcd-druid
   repository: eu.gcr.io/gardener-project/gardener/etcd-druid
-  tag: "v0.15.0"
+  tag: "v0.16.0-dev-1f74f311f3d16bee3a1e64e3568368396130e57b"
 - name: dependency-watchdog
   sourceRepository: github.com/gardener/dependency-watchdog
   repository: eu.gcr.io/gardener-project/gardener/dependency-watchdog

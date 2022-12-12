@@ -84,8 +84,6 @@ github.com/fluent/fluent-operator/apis/fluentbit/v1alpha2/plugins/output
 github.com/fluent/fluent-operator/apis/fluentbit/v1alpha2/plugins/params
 github.com/fluent/fluent-operator/apis/fluentbit/v1alpha2/plugins/parser
 github.com/fluent/fluent-operator/pkg/utils
-# github.com/frankban/quicktest v1.13.1
-## explicit; go 1.13
 # github.com/fsnotify/fsnotify v1.5.4
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
@@ -93,7 +91,7 @@ github.com/fsnotify/fsnotify
 ## explicit; go 1.13
 github.com/gardener/dependency-watchdog/pkg/restarter/api
 github.com/gardener/dependency-watchdog/pkg/scaler/api
-# github.com/gardener/etcd-druid v0.15.0
+# github.com/gardener/etcd-druid v0.15.0 => github.com/ialidzhikov/etcd-druid v0.1.1-0.20221207155750-cd38589eca29
 ## explicit; go 1.19
 github.com/gardener/etcd-druid/api/v1alpha1
 github.com/gardener/etcd-druid/api/validation
@@ -1647,6 +1645,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 sigs.k8s.io/yaml
 # github.com/emicklei/go-restful/v3 => github.com/emicklei/go-restful/v3 v3.8.0
 # github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.9.4
+# github.com/gardener/etcd-druid => github.com/ialidzhikov/etcd-druid v0.1.1-0.20221207155750-cd38589eca29
 # github.com/gardener/hvpa-controller => github.com/gardener/hvpa-controller v0.5.0
 # github.com/gardener/hvpa-controller/api => github.com/gardener/hvpa-controller/api v0.5.0
 # github.com/google/gnostic => github.com/google/gnostic v0.5.7-v3refs

@@ -34,6 +34,7 @@ import (
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	hvpav1alpha1 "github.com/gardener/hvpa-controller/api/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
@@ -272,6 +273,7 @@ var _ = Describe("Etcd", func() {
 			serverSecretName string,
 			peerCASecretName *string,
 			peerServerSecretName *string,
+			topologyAwareRoutingEnabled bool,
 		) *druidv1alpha1.Etcd {
 			defragSchedule := defragmentationSchedule
 			if existingDefragmentationSchedule != "" {
@@ -449,6 +451,17 @@ var _ = Describe("Etcd", func() {
 						EtcdConnectionTimeout: backupLeaderElectionEtcdConnectionTimeout,
 						ReelectionPeriod:      backupLeaderElectionReelectionPeriod,
 					}
+				}
+			}
+
+			if topologyAwareRoutingEnabled {
+				obj.Spec.Etcd.ClientService = &druidv1alpha1.ClientService{
+					Annotations: map[string]string{
+						corev1.AnnotationTopologyAwareHints: "auto",
+					},
+					Labels: map[string]string{
+						resourcesv1alpha1.EndpointSliceHintsConsider: "true",
+					},
 				}
 			}
 
@@ -774,7 +787,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)))
+						nil,
+						false)))
 				}),
 				c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 				c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -845,7 +859,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)))
+						nil,
+						false)))
 				}),
 				c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 				c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -921,7 +936,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)))
+						nil,
+						false)))
 				}),
 				c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 				c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -979,7 +995,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)
+						nil,
+						false)
 					expectedObj.Annotations = utils.MergeStringMaps(expectedObj.Annotations, map[string]string{
 						"foo": "bar",
 					})
@@ -1047,7 +1064,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)))
+						nil,
+						false)))
 				}),
 				c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 				c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -1140,7 +1158,8 @@ var _ = Describe("Etcd", func() {
 						secretNameClient,
 						secretNameServer,
 						nil,
-						nil)))
+						nil,
+						false)))
 				}),
 				c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 				c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -1204,7 +1223,8 @@ var _ = Describe("Etcd", func() {
 							secretNameClient,
 							secretNameServer,
 							nil,
-							nil)))
+							nil,
+							false)))
 					}),
 					c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 					c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -1257,7 +1277,8 @@ var _ = Describe("Etcd", func() {
 							secretNameClient,
 							secretNameServer,
 							nil,
-							nil)))
+							nil,
+							false)))
 					}),
 					c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
 					c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
@@ -1316,7 +1337,8 @@ var _ = Describe("Etcd", func() {
 							secretNameClient,
 							secretNameServer,
 							nil,
-							nil)
+							nil,
+							false)
 						expobj.Status.Etcd = &druidv1alpha1.CrossVersionObjectReference{}
 
 						Expect(obj).To(DeepEqual(expobj))
@@ -1376,6 +1398,7 @@ var _ = Describe("Etcd", func() {
 							serverSecretName,
 							&peerCASecretName,
 							&peerServerSecretName,
+							false,
 						)))
 					}),
 					c.EXPECT().Delete(ctx, &hvpav1alpha1.Hvpa{ObjectMeta: metav1.ObjectMeta{Name: "etcd-" + testRole, Namespace: testNamespace}}),
@@ -1545,6 +1568,68 @@ var _ = Describe("Etcd", func() {
 
 					Expect(etcd.Deploy(ctx)).To(Succeed())
 				})
+			})
+		})
+
+		Context("when TopologyAwareRoutingEnabled=true", func() {
+			It("should successfully deploy with expected etcd client service annotations and labels", func() {
+				oldTimeNow := TimeNow
+				defer func() { TimeNow = oldTimeNow }()
+				TimeNow = func() time.Time { return now }
+
+				class := ClassImportant
+				updateMode := hvpav1alpha1.UpdateModeMaintenanceWindow
+
+				replicas = pointer.Int32(1)
+
+				etcd = New(log, c, testNamespace, sm, Values{
+					Role:                        testRole,
+					Class:                       class,
+					FailureToleranceType:        nil,
+					Replicas:                    replicas,
+					StorageCapacity:             storageCapacity,
+					StorageClassName:            &storageClassName,
+					DefragmentationSchedule:     &defragmentationSchedule,
+					CARotationPhase:             "",
+					K8sVersion:                  "1.20.1",
+					PriorityClassName:           priorityClassName,
+					TopologyAwareRoutingEnabled: true,
+				})
+				newSetHVPAConfigFunc(updateMode)()
+
+				gomock.InOrder(
+					c.EXPECT().Get(ctx, kutil.Key(testNamespace, etcdName), gomock.AssignableToTypeOf(&druidv1alpha1.Etcd{})).Return(apierrors.NewNotFound(schema.GroupResource{}, "")),
+					c.EXPECT().Get(ctx, kutil.Key(testNamespace, etcdName), gomock.AssignableToTypeOf(&appsv1.StatefulSet{})).Return(apierrors.NewNotFound(schema.GroupResource{}, "")),
+
+					c.EXPECT().Get(ctx, kutil.Key(testNamespace, networkPolicyClientName), gomock.AssignableToTypeOf(&networkingv1.NetworkPolicy{})),
+					c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&networkingv1.NetworkPolicy{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
+						Expect(obj).To(DeepEqual(clientNetworkPolicy))
+					}),
+					c.EXPECT().Get(ctx, kutil.Key(testNamespace, etcdName), gomock.AssignableToTypeOf(&druidv1alpha1.Etcd{})),
+					c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&druidv1alpha1.Etcd{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
+						Expect(obj).To(DeepEqual(etcdObjFor(
+							class,
+							1,
+							nil,
+							"",
+							"",
+							nil,
+							nil,
+							nil,
+							secretNameCA,
+							secretNameClient,
+							secretNameServer,
+							nil,
+							nil,
+							true)))
+					}),
+					c.EXPECT().Get(ctx, kutil.Key(testNamespace, hvpaName), gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{})),
+					c.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&hvpav1alpha1.Hvpa{}), gomock.Any()).Do(func(ctx context.Context, obj client.Object, _ client.Patch, _ ...client.PatchOption) {
+						Expect(obj).To(DeepEqual(hvpaFor(class, 1, updateMode)))
+					}),
+				)
+
+				Expect(etcd.Deploy(ctx)).To(Succeed())
 			})
 		})
 	})
