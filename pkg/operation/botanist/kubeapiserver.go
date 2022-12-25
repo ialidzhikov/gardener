@@ -92,17 +92,19 @@ func (b *Botanist) DefaultKubeAPIServer(ctx context.Context) (kubeapiserver.Inte
 	var (
 		apiServerConfig = b.Shoot.GetInfo().Spec.Kubernetes.KubeAPIServer
 
-		enabledAdmissionPlugins  = kutil.GetAdmissionPluginsForVersion(b.Shoot.GetInfo().Spec.Kubernetes.Version)
-		disabledAdmissionPlugins []gardencorev1beta1.AdmissionPlugin
-		apiAudiences             = []string{"kubernetes", "gardener"}
-		auditConfig              *kubeapiserver.AuditConfig
-		eventTTL                 *metav1.Duration
-		featureGates             map[string]bool
-		oidcConfig               *gardencorev1beta1.OIDCConfig
-		requests                 *gardencorev1beta1.KubeAPIServerRequests
-		runtimeConfig            map[string]bool
-		watchCacheSizes          *gardencorev1beta1.WatchCacheSizes
-		logging                  *gardencorev1beta1.KubeAPIServerLogging
+		enabledAdmissionPlugins             = kutil.GetAdmissionPluginsForVersion(b.Shoot.GetInfo().Spec.Kubernetes.Version)
+		disabledAdmissionPlugins            []gardencorev1beta1.AdmissionPlugin
+		apiAudiences                        = []string{"kubernetes", "gardener"}
+		auditConfig                         *kubeapiserver.AuditConfig
+		defaultNotReadyTolerationSeconds    *int64
+		defaultUnreachableTolerationSeconds *int64
+		eventTTL                            *metav1.Duration
+		featureGates                        map[string]bool
+		oidcConfig                          *gardencorev1beta1.OIDCConfig
+		requests                            *gardencorev1beta1.KubeAPIServerRequests
+		runtimeConfig                       map[string]bool
+		watchCacheSizes                     *gardencorev1beta1.WatchCacheSizes
+		logging                             *gardencorev1beta1.KubeAPIServerLogging
 	)
 
 	if apiServerConfig != nil {
@@ -126,6 +128,8 @@ func (b *Botanist) DefaultKubeAPIServer(ctx context.Context) (kubeapiserver.Inte
 			return nil, err
 		}
 
+		defaultNotReadyTolerationSeconds = apiServerConfig.DefaultNotReadyTolerationSeconds
+		defaultUnreachableTolerationSeconds = apiServerConfig.DefaultUnreachableTolerationSeconds
 		eventTTL = apiServerConfig.EventTTL
 		featureGates = apiServerConfig.FeatureGates
 		oidcConfig = apiServerConfig.OIDCConfig
@@ -141,20 +145,22 @@ func (b *Botanist) DefaultKubeAPIServer(ctx context.Context) (kubeapiserver.Inte
 		b.Shoot.SeedNamespace,
 		b.SecretsManager,
 		kubeapiserver.Values{
-			EnabledAdmissionPlugins:        enabledAdmissionPlugins,
-			DisabledAdmissionPlugins:       disabledAdmissionPlugins,
-			AnonymousAuthenticationEnabled: gardencorev1beta1helper.ShootWantsAnonymousAuthentication(b.Shoot.GetInfo().Spec.Kubernetes.KubeAPIServer),
-			APIAudiences:                   apiAudiences,
-			Audit:                          auditConfig,
-			Autoscaling:                    b.computeKubeAPIServerAutoscalingConfig(),
-			EventTTL:                       eventTTL,
-			FeatureGates:                   featureGates,
-			Images:                         images,
-			OIDC:                           oidcConfig,
-			Requests:                       requests,
-			RuntimeConfig:                  runtimeConfig,
-			StaticTokenKubeconfigEnabled:   b.Shoot.GetInfo().Spec.Kubernetes.EnableStaticTokenKubeconfig,
-			Version:                        b.Shoot.KubernetesVersion,
+			EnabledAdmissionPlugins:             enabledAdmissionPlugins,
+			DisabledAdmissionPlugins:            disabledAdmissionPlugins,
+			AnonymousAuthenticationEnabled:      gardencorev1beta1helper.ShootWantsAnonymousAuthentication(b.Shoot.GetInfo().Spec.Kubernetes.KubeAPIServer),
+			APIAudiences:                        apiAudiences,
+			Audit:                               auditConfig,
+			Autoscaling:                         b.computeKubeAPIServerAutoscalingConfig(),
+			DefaultNotReadyTolerationSeconds:    defaultNotReadyTolerationSeconds,
+			DefaultUnreachableTolerationSeconds: defaultUnreachableTolerationSeconds,
+			EventTTL:                            eventTTL,
+			FeatureGates:                        featureGates,
+			Images:                              images,
+			OIDC:                                oidcConfig,
+			Requests:                            requests,
+			RuntimeConfig:                       runtimeConfig,
+			StaticTokenKubeconfigEnabled:        b.Shoot.GetInfo().Spec.Kubernetes.EnableStaticTokenKubeconfig,
+			Version:                             b.Shoot.KubernetesVersion,
 			VPN: kubeapiserver.VPNConfig{
 				ReversedVPNEnabled:                   b.Shoot.ReversedVPNEnabled,
 				PodNetworkCIDR:                       b.Shoot.Networks.Pods.String(),
