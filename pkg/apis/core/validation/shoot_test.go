@@ -1900,6 +1900,55 @@ var _ = Describe("Shoot Validation Tests", func() {
 			})
 		})
 
+		Context("kubernetes.enableStaticTokenKubeconfig field validation", func() {
+			It("should deny shoot with enableStaticTokenKubeconfig=nil and k8s version 1.26", func() {
+				shoot.Spec.Kubernetes.Version = "1.26.0"
+				shoot.Spec.Kubernetes.EnableStaticTokenKubeconfig = nil
+
+				errorList := ValidateShoot(shoot)
+				Expect(errorList).Should(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.enableStaticTokenKubeconfig"),
+					"Detail": ContainSubstring("for Kubernetes versions >= 1.26, enableStaticTokenKubeconfig field must be set to false"),
+				}))))
+			})
+
+			It("should deny shoot with enableStaticTokenKubeconfig=true and k8s version 1.26", func() {
+				shoot.Spec.Kubernetes.Version = "1.26.0"
+				shoot.Spec.Kubernetes.EnableStaticTokenKubeconfig = pointer.Bool(true)
+
+				errorList := ValidateShoot(shoot)
+				Expect(errorList).Should(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.enableStaticTokenKubeconfig"),
+					"Detail": ContainSubstring("for Kubernetes versions >= 1.26, enableStaticTokenKubeconfig field must be set to false"),
+				}))))
+			})
+
+			It("should deny updating shoot with enableStaticTokenKubeconfig=true to k8s version 1.26", func() {
+				shoot.Spec.Kubernetes.Version = "1.25.0"
+				shoot.Spec.Kubernetes.EnableStaticTokenKubeconfig = pointer.Bool(true)
+
+				newShoot := prepareShootForUpdate(shoot)
+				newShoot.Spec.Kubernetes.Version = "1.26.0"
+
+				errorList := ValidateShootUpdate(newShoot, shoot)
+				Expect(errorList).Should(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.enableStaticTokenKubeconfig"),
+					"Detail": ContainSubstring("for Kubernetes versions >= 1.26, enableStaticTokenKubeconfig field must be set to false"),
+				}))))
+			})
+
+			It("should allow shoot with enableStaticTokenKubeconfig=true and k8s version 1.25", func() {
+				shoot.Spec.Kubernetes.Version = "1.25.0"
+				shoot.Spec.Kubernetes.EnableStaticTokenKubeconfig = pointer.Bool(true)
+
+				errorList := ValidateShoot(shoot)
+				Expect(errorList).To(BeEmpty())
+			})
+		})
+
 		Context("KubeControllerManager validation", func() {
 			It("should forbid unsupported HPA configuration", func() {
 				shoot.Spec.Kubernetes.KubeControllerManager.HorizontalPodAutoscalerConfig.DownscaleStabilization = makeDurationPointer(-1 * time.Second)

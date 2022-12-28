@@ -5657,8 +5657,8 @@ bool
 </td>
 <td>
 <em>(Optional)</em>
-<p>EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret should be present in garden cluster
-(default: true).</p>
+<p>EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret will be created for the Shoot cluster.
+Defaults to true for Kubernetes versions &lt; v1.26. Starting Kubernets v1.26 the field is locked to false - cannot be set to true.</p>
 </td>
 </tr>
 </tbody>

@@ -846,6 +846,11 @@ func validateKubernetes(kubernetes core.Kubernetes, dockerConfigured, shootHasDe
 		allErrs = append(allErrs, field.Forbidden(fldPath.Child("allowPrivilegedContainers"), "for Kubernetes versions >= 1.25, allowPrivilegedContainers field should not be set, please see https://github.com/gardener/gardener/blob/master/docs/usage/pod-security.md#speckubernetesallowprivilegedcontainers-in-the-shoot-spec"))
 	}
 
+	k8sGreaterEqual126, _ := versionutils.CheckVersionMeetsConstraint(kubernetes.Version, ">= 1.26")
+	if k8sGreaterEqual126 && (kubernetes.EnableStaticTokenKubeconfig == nil || *kubernetes.EnableStaticTokenKubeconfig) {
+		allErrs = append(allErrs, field.Forbidden(fldPath.Child("enableStaticTokenKubeconfig"), "for Kubernetes versions >= 1.26, enableStaticTokenKubeconfig field must be set to false, please see https://github.com/gardener/gardener/blob/master/docs/usage/shoot_access.md"))
+	}
+
 	return allErrs
 }
 
