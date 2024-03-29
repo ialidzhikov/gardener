@@ -17,6 +17,7 @@ package apiserver_test
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/pointer"
 	"strconv"
 	"strings"
 	"time"
@@ -237,13 +238,13 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("Scaling mode is HVPA", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeHVPA}),
 				Entry("Scaling mode is Bilinear", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBilinear}),
 				Entry("replicas is nil", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBaseline, Replicas: nil}),
-				Entry("replicas is 0", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBaseline, Replicas: ptr.Int32(0)}),
+				Entry("replicas is 0", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBaseline, Replicas: pointer.Int32(0)}),
 			)
 
 			BeforeEach(func() {
 				autoscalingConfig = apiserver.AutoscalingConfig{
 					AutoscalingMode: apiserver.AutoscalingModeBaseline,
-					Replicas:        ptr.Int32(2),
+					Replicas:        pointer.Int32(2),
 					MinReplicas:     4,
 					MaxReplicas:     6,
 				}
@@ -366,7 +367,7 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("In Baseline autoscaling mode", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBaseline}),
 				Entry("In Bilinear autoscaling mode", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeBilinear}),
 				Entry("HVPA enabled but replicas nil", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeHVPA}),
-				Entry("HVPA enabled but replicas zero", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeHVPA, Replicas: ptr.Int32(0)}),
+				Entry("HVPA enabled but replicas zero", apiserver.AutoscalingConfig{AutoscalingMode: apiserver.AutoscalingModeHVPA, Replicas: pointer.Int32(0)}),
 			)
 
 			var (
@@ -531,7 +532,7 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("default behaviour",
 					apiserver.AutoscalingConfig{
 						AutoscalingMode: apiserver.AutoscalingModeHVPA,
-						Replicas:        ptr.Int32(2),
+						Replicas:        pointer.Int32(2),
 						MinReplicas:     5,
 						MaxReplicas:     5,
 					},
@@ -544,7 +545,7 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("UseMemoryMetricForHvpaHPA is true",
 					apiserver.AutoscalingConfig{
 						AutoscalingMode:           apiserver.AutoscalingModeHVPA,
-						Replicas:                  ptr.Int32(2),
+						Replicas:                  pointer.Int32(2),
 						UseMemoryMetricForHvpaHPA: true,
 						MinReplicas:               5,
 						MaxReplicas:               5,
@@ -573,7 +574,7 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("scale down is disabled",
 					apiserver.AutoscalingConfig{
 						AutoscalingMode:          apiserver.AutoscalingModeHVPA,
-						Replicas:                 ptr.Int32(2),
+						Replicas:                 pointer.Int32(2),
 						MinReplicas:              5,
 						MaxReplicas:              5,
 						ScaleDownDisabledForHvpa: true,
@@ -587,7 +588,7 @@ var _ = Describe("KubeAPIServer", func() {
 				Entry("max replicas > min replicas",
 					apiserver.AutoscalingConfig{
 						AutoscalingMode: apiserver.AutoscalingModeHVPA,
-						Replicas:        ptr.Int32(2),
+						Replicas:        pointer.Int32(2),
 						MinReplicas:     3,
 						MaxReplicas:     5,
 					},
