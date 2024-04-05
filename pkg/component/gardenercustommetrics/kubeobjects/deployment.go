@@ -15,6 +15,7 @@
 package kubeobjects
 
 import (
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -113,7 +114,7 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 							},
 						},
 					},
-					PriorityClassName:  "gardener-system-700",
+					PriorityClassName:  v1beta1constants.PriorityClassNameSeedSystem700,
 					ServiceAccountName: "gardener-custom-metrics",
 					Volumes: []corev1.Volume{
 						{
