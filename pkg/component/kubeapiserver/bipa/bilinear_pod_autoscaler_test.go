@@ -68,11 +68,6 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 		newExpectedHpa = func(minReplicaCount int32, maxReplicaCount int32) *autoscalingv2.HorizontalPodAutoscaler {
 			lvalue300 := resource.MustParse("300")
 			return &autoscalingv2.HorizontalPodAutoscaler{
-				// TODO: Andrey: P1: Review
-				//TypeMeta: metav1.TypeMeta{
-				//	APIVersion: autoscalingv2.SchemeGroupVersion.String(),
-				//	Kind:       "HorizontalPodAutoscaler",
-				//},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            hpaName,
 					Namespace:       namespaceName,
@@ -112,11 +107,6 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 				updateModeAutoAsLvalue               = vpaautoscalingv1.UpdateModeAuto
 			)
 			return &vpaautoscalingv1.VerticalPodAutoscaler{
-				// TODO: Andrey: P1: Review
-				//TypeMeta: metav1.TypeMeta{
-				//	APIVersion: vpaautoscalingv1.SchemeGroupVersion.String(),
-				//	Kind:       "VerticalPodAutoscaler",
-				//},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            vpaName,
 					Namespace:       namespaceName,
