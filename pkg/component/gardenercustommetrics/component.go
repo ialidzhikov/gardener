@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/gardener/pkg/component"
 	"github.com/gardener/gardener/pkg/component/gardenercustommetrics/kubeobjects"
 	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/managedresources"
@@ -36,19 +37,15 @@ import (
 // ComponentName is the component name.
 const ComponentName = componentBaseName
 
-// GardenerCustomMetrics manages an instance of the gardener-custom-metrics component (aka GCMx). The component is
+// gardenerCustomMetrics manages an instance of the gardener-custom-metrics component (aka GCMx). The component is
 // deployed on a seed, scrapes the metrics from all shoot kube-apiserver pods, and provides custom metrics by
 // registering as APIService at the custom metrics extension point of the seed kube-apiserver.
-// For information about individual fields, see the NewGardenerCustomMetrics function.
-type GardenerCustomMetrics struct {
+// For information about individual fields, see the New function.
+type gardenerCustomMetrics struct {
+	client         client.Client
 	namespaceName  string
-	isEnabled      bool
-	seedClient     client.Client
 	secretsManager secretsmanager.Interface
-
-	values Values
-
-	testIsolation gardenerCustomMetricsTestIsolation // Provides indirections necessary to isolate the unit during tests
+	values         Values
 }
 
 // Values is a set of configuration values for the GardenerCustomMetrics component.
@@ -59,52 +56,32 @@ type Values struct {
 	KubernetesVersion *semver.Version
 }
 
-// NewGardenerCustomMetrics creates a new GardenerCustomMetrics instance tied to a specific server connection.
+// New creates a new GardenerCustomMetrics instance tied to a specific server connection.
 //
+// client represents the connection to the seed API server.
 // namespace is where the server-side artefacts (e.g. pods) will be deployed (usually the 'garden' namespace).
 // containerImageName points to the binary for the gardener-custom-metrics pods. The exact version to be used, is
 // determined by contextual configuration, e.g. image vector overrides.
-// If enabled is true, this instance strives to bring the component to an installed, working state. If enabled is
-// false, this instance strives to uninstall the component.
-// seedClient represents the connection to the seed API server.
 // secretsManager is used to interact with secrets on the seed.
-func NewGardenerCustomMetrics(
+func New(
+	client client.Client,
 	namespace string,
-	enabled bool,
-	seedClient client.Client,
 	secretsManager secretsmanager.Interface,
-	values Values) *GardenerCustomMetrics {
-	return &GardenerCustomMetrics{
+	values Values) component.DeployWaiter {
+	return &gardenerCustomMetrics{
 		namespaceName:  namespace,
-		isEnabled:      enabled,
-		seedClient:     seedClient,
+		client:         client,
 		secretsManager: secretsManager,
-
-		values: values,
-
-		testIsolation: gardenerCustomMetricsTestIsolation{
-			CreateForSeed: managedresources.CreateForSeed,
-			DeleteForSeed: managedresources.DeleteForSeed,
-		},
+		values:         values,
 	}
 }
 
 // Deploy implements [component.Deployer.Deploy]()
-func (gcmx *GardenerCustomMetrics) Deploy(ctx context.Context) error {
+func (gcmx *gardenerCustomMetrics) Deploy(ctx context.Context) error {
 	baseErrorMessage :=
 		fmt.Sprintf(
 			"An error occurred while deploying gardener-custom-metrics component in namespace '%s' of the seed server",
 			gcmx.namespaceName)
-
-	if !gcmx.isEnabled {
-		if err := gcmx.Destroy(ctx); err != nil {
-			return fmt.Errorf(baseErrorMessage+
-				" - failed to bring the gardener-custom-metrics on the server to a disabled state. "+
-				"The error message reported by the underlying operation follows: %w",
-				err)
-		}
-		return nil
-	}
 
 	serverCertificateSecret, err := gcmx.deployServerCertificate(ctx)
 	if err != nil {
@@ -124,9 +101,9 @@ func (gcmx *GardenerCustomMetrics) Deploy(ctx context.Context) error {
 			err)
 	}
 
-	err = gcmx.testIsolation.CreateForSeed(
+	err = managedresources.CreateForSeed(
 		ctx,
-		gcmx.seedClient,
+		gcmx.client,
 		gcmx.namespaceName,
 		managedResourceName,
 		false,
@@ -143,8 +120,8 @@ func (gcmx *GardenerCustomMetrics) Deploy(ctx context.Context) error {
 }
 
 // Destroy implements [component.Deployer.Destroy]()
-func (gcmx *GardenerCustomMetrics) Destroy(ctx context.Context) error {
-	if err := gcmx.testIsolation.DeleteForSeed(ctx, gcmx.seedClient, gcmx.namespaceName, managedResourceName); err != nil {
+func (gcmx *gardenerCustomMetrics) Destroy(ctx context.Context) error {
+	if err := managedresources.DeleteForSeed(ctx, gcmx.client, gcmx.namespaceName, managedResourceName); err != nil {
 		return fmt.Errorf(
 			"An error occurred while removing the gardener-custom-metrics component in namespace '%s' from the seed server"+
 				" - failed to remove ManagedResource '%s'. "+
@@ -158,11 +135,11 @@ func (gcmx *GardenerCustomMetrics) Destroy(ctx context.Context) error {
 }
 
 // Wait implements [component.Waiter.Wait]()
-func (gcmx *GardenerCustomMetrics) Wait(ctx context.Context) error {
+func (gcmx *gardenerCustomMetrics) Wait(ctx context.Context) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, managedResourceTimeout)
 	defer cancel()
 
-	if err := managedresources.WaitUntilHealthy(timeoutCtx, gcmx.seedClient, gcmx.namespaceName, managedResourceName); err != nil {
+	if err := managedresources.WaitUntilHealthy(timeoutCtx, gcmx.client, gcmx.namespaceName, managedResourceName); err != nil {
 		return fmt.Errorf(
 			"An error occurred while waiting for the deployment process of the gardener-custom-metrics component to "+
 				"'%s' namespace in the seed server to finish and for the component to report ready status"+
@@ -177,11 +154,11 @@ func (gcmx *GardenerCustomMetrics) Wait(ctx context.Context) error {
 }
 
 // WaitCleanup implements [component.Waiter.WaitCleanup]()
-func (gcmx *GardenerCustomMetrics) WaitCleanup(ctx context.Context) error {
+func (gcmx *gardenerCustomMetrics) WaitCleanup(ctx context.Context) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, managedResourceTimeout)
 	defer cancel()
 
-	if err := managedresources.WaitUntilDeleted(timeoutCtx, gcmx.seedClient, gcmx.namespaceName, managedResourceName); err != nil {
+	if err := managedresources.WaitUntilDeleted(timeoutCtx, gcmx.client, gcmx.namespaceName, managedResourceName); err != nil {
 		return fmt.Errorf(
 			"An error occurred while waiting for the gardener-custom-metrics component to be fully removed from the "+
 				"'%s' namespace in the seed server"+
@@ -204,18 +181,8 @@ const (
 	managedResourceTimeout      = 2 * time.Minute            // Timeout for ManagedResources to become healthy or deleted
 )
 
-// gardenerCustomMetricsTestIsolation contains all points of indirection necessary to isolate GardenerCustomMetrics'
-// dependencies on external static functions during test.
-type gardenerCustomMetricsTestIsolation struct {
-	// Points to [managedresources.CreateForSeed]()
-	CreateForSeed func(
-		ctx context.Context, client client.Client, namespace, name string, keepObjects bool, data map[string][]byte) error
-	// Points to [managedresources.DeleteForSeed]()
-	DeleteForSeed func(ctx context.Context, client client.Client, namespace, name string) error
-}
-
 // Deploys the GCMx server TLS certificate to a secret and returns the name of the created secret
-func (gcmx *GardenerCustomMetrics) deployServerCertificate(ctx context.Context) (*corev1.Secret, error) {
+func (gcmx *gardenerCustomMetrics) deployServerCertificate(ctx context.Context) (*corev1.Secret, error) {
 	const baseErrorMessage = "An error occurred while deploying server TLS certificate for gardener-custom-metrics"
 
 	_, found := gcmx.secretsManager.Get(v1beta1constants.SecretNameCASeed)

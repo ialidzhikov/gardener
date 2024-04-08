@@ -524,14 +524,18 @@ func (r *Reconciler) newGardenerCustomMetics(secretsManager secretsmanager.Inter
 		Image:             image.String(),
 		KubernetesVersion: r.SeedVersion,
 	}
-
-	return gardenercustommetrics.NewGardenerCustomMetrics(
-		r.GardenNamespace,
-		features.DefaultFeatureGate.Enabled(features.BilinearAutoscaling),
+	deployer := gardenercustommetrics.New(
 		r.SeedClientSet.Client(),
+		r.GardenNamespace,
 		secretsManager,
 		values,
-	), nil
+	)
+
+	if !features.DefaultFeatureGate.Enabled(features.BilinearAutoscaling) {
+		deployer = component.OpDestroyWithoutWait(deployer)
+	}
+
+	return deployer, nil
 }
 
 func (r *Reconciler) newVPNAuthzServer() (component.DeployWaiter, error) {

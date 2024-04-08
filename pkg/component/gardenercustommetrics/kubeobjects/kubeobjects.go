@@ -38,8 +38,8 @@ func GetKubeObjectsAsYamlBytes(deploymentName, namespace, image, serverSecretNam
 		makeAuthReaderRoleBinding(namespace),
 		makeDeployment(deploymentName, namespace, image, serverSecretName),
 		makeService(namespace),
-		makeAPIService(namespace),
 		makePDB(namespace, kubernetesVersion),
 		makeVPA(namespace),
+		makeAPIService(namespace),
 	)
 }

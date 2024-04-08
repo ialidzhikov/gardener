@@ -24,26 +24,22 @@ import (
 )
 
 func makePDB(namespace string, kubernetesVersion *semver.Version) *policyv1.PodDisruptionBudget {
-	labels := map[string]string{
-		"gardener.cloud/role": "gardener-custom-metrics",
-	}
-
-	selector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app":                 "gardener-custom-metrics",
-			"gardener.cloud/role": "gardener-custom-metrics",
-		},
-	}
-
 	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics",
 			Namespace: namespace,
-			Labels:    labels,
+			Labels: map[string]string{
+				"gardener.cloud/role": "gardener-custom-metrics",
+			},
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
 			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
-			Selector:       selector,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":                 "gardener-custom-metrics",
+					"gardener.cloud/role": "gardener-custom-metrics",
+				},
+			},
 		},
 	}
 

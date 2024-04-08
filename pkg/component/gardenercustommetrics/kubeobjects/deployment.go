@@ -15,12 +15,13 @@
 package kubeobjects
 
 import (
-	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
 func makeDeployment(deploymentName, namespace, containerImageName, serverSecretName string) *appsv1.Deployment {
@@ -58,8 +59,10 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Command: []string{
-								"./gardener-custom-metrics",
+							Name:            "gardener-custom-metrics",
+							Image:           containerImageName,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Args: []string{
 								"--secure-port=6443",
 								"--tls-cert-file=/var/run/secrets/gardener.cloud/tls/tls.crt",
 								"--tls-private-key-file=/var/run/secrets/gardener.cloud/tls/tls.key",
@@ -87,9 +90,6 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 									},
 								},
 							},
-							Image:           containerImageName,
-							ImagePullPolicy: corev1.PullIfNotPresent,
-							Name:            "gardener-custom-metrics",
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 6443,
@@ -103,8 +103,6 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 							},
-							TerminationMessagePath:   "/dev/termination-log",
-							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									MountPath: "/var/run/secrets/gardener.cloud/tls",
