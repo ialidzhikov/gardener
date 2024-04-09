@@ -433,7 +433,7 @@ func (k *kubeAPIServer) Deploy(ctx context.Context) error {
 
 func (k *kubeAPIServer) Destroy(ctx context.Context) error {
 	deployment := k.emptyDeployment()
-	err := NewBilinearPodAutoscaler(k.namespace, deployment.Name).DeleteFromServer(ctx, k.client.Client())
+	err := NewBilinearPodAutoscaler(k.namespace, deployment.Name).Delete(ctx, k.client.Client())
 	if err != nil {
 		return err
 	}
@@ -621,13 +621,15 @@ func (k *kubeAPIServer) reconcileBilinearPodAutoscaler(ctx context.Context, depl
 	isEnabled := k.values.Autoscaling.AutoscalingMode == apiserver.AutoscalingModeBilinear &&
 		k.values.Autoscaling.Replicas != nil &&
 		*k.values.Autoscaling.Replicas != 0
-	return NewBilinearPodAutoscaler(k.namespace, deploymentName).Reconcile(
-		ctx,
-		k.client.Client(),
-		&DesiredStateParameters{
-			IsEnabled:              isEnabled,
-			MinReplicaCount:        k.values.Autoscaling.MinReplicas,
-			MaxReplicaCount:        k.values.Autoscaling.MaxReplicas,
-			ContainerNameApiserver: ContainerNameKubeAPIServer,
-		})
+
+	bipa := NewBilinearPodAutoscaler(k.namespace, deploymentName)
+	if !isEnabled {
+		return bipa.Delete(ctx, k.client.Client())
+	}
+
+	return bipa.Reconcile(ctx, k.client.Client(), &DesiredStateParameters{
+		MinReplicaCount:        k.values.Autoscaling.MinReplicas,
+		MaxReplicaCount:        k.values.Autoscaling.MaxReplicas,
+		ContainerNameApiserver: ContainerNameKubeAPIServer,
+	})
 }

@@ -53,9 +53,6 @@ import (
 type DesiredStateParameters struct {
 	// The name of the kube-apiserver container inside the kube-apiserver pod
 	ContainerNameApiserver string
-	// If true, reconciliation will strive for a working deployment on the server. If false, reconciliation will remove
-	// any elements of a previously existing deployment on the server.
-	IsEnabled bool
 	// MinReplicaCount and MaxReplicaCount control the horizontal scaling range
 	MaxReplicaCount int32
 	// MinReplicaCount and MaxReplicaCount control the horizontal scaling range
@@ -94,13 +91,6 @@ const (
 // The 'parameters' parameter specifies the desired state that is to be applied upon the server-side autoscaler setup.
 func (bipa *BilinearPodAutoscaler) Reconcile(
 	ctx context.Context, seedClient client.Client, parameters *DesiredStateParameters) error {
-	if !parameters.IsEnabled {
-		if err := bipa.DeleteFromServer(ctx, seedClient); err != nil {
-			return fmt.Errorf("failed to delete the bilinear pod autoscaler component: %w", err)
-		}
-		return nil
-	}
-
 	if err := bipa.reconcileHPA(ctx, seedClient, parameters.MinReplicaCount, parameters.MaxReplicaCount); err != nil {
 		return fmt.Errorf("failed to reconcile HorizontalPodAutoscaler: %w", err)
 	}
@@ -122,9 +112,9 @@ func (bipa *BilinearPodAutoscaler) Reconcile(
 	return nil
 }
 
-// DeleteFromServer removes all BilinearPodAutoscaler artefacts from the shoot control plane.
+// Delete removes all BilinearPodAutoscaler artefacts from the shoot control plane.
 // The seedClient parameter specifies a connection to the server hosting said control plane.
-func (bipa *BilinearPodAutoscaler) DeleteFromServer(ctx context.Context, seedClient client.Client) error {
+func (bipa *BilinearPodAutoscaler) Delete(ctx context.Context, seedClient client.Client) error {
 	if err := managedresources.DeleteForShoot(ctx, seedClient, bipa.namespace, managedResourceName); err != nil {
 		return fmt.Errorf("failed to delete ManagedResource '%s/%s': %w", bipa.namespace, managedResourceName, err)
 	}
