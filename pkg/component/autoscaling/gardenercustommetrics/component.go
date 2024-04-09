@@ -26,16 +26,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/component"
-	"github.com/gardener/gardener/pkg/component/autoscaling/gardenercustommetrics/kubeobjects"
 	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/managedresources"
 	secretsutils "github.com/gardener/gardener/pkg/utils/secrets"
 	secretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager"
 )
 
-// ComponentName is the component name.
-const ComponentName = componentBaseName
+const (
+	// ComponentName is the component name.
+	ComponentName = "gardener-custom-metrics"
+
+	managedResourceName         = "gardener-custom-metrics"
+	serverCertificateSecretName = "gardener-custom-metrics-tls"
+	// managedResourceTimeout is the timeout used while waiting for the ManagedResources to become healthy or
+	// deleted.
+	managedResourceTimeout = 2 * time.Minute
+)
 
 // gardenerCustomMetrics manages an instance of the gardener-custom-metrics component (aka GCMx). The component is
 // deployed on a seed, scrapes the metrics from all shoot kube-apiserver pods, and provides custom metrics by
@@ -83,13 +91,27 @@ func (gcmx *gardenerCustomMetrics) Deploy(ctx context.Context) error {
 		return fmt.Errorf("failed to delpoy the gardener-custom-metrics server TLS certificate: %w", err)
 	}
 
-	kubeObjects, err := kubeobjects.GetKubeObjectsAsYamlBytes(
-		deploymentName, gcmx.namespace, gcmx.values.Image, serverCertificateSecret.Name, gcmx.values.KubernetesVersion)
+	registry := managedresources.NewRegistry(kubernetes.SeedScheme, kubernetes.SeedCodec, kubernetes.SeedSerializer)
+
+	resurces, err := registry.AddAllAndSerialize(
+		gcmx.serviceAccount(),
+		gcmx.role(),
+		gcmx.roleBinding(),
+		gcmx.clusterRole(),
+		gcmx.clusterRoleBinding(),
+		gcmx.authDelegatorClusterRoleBinding(),
+		gcmx.authReaderRoleBinding(),
+		gcmx.deployment(serverCertificateSecret.Name),
+		gcmx.service(),
+		gcmx.podDisruptionBudget(),
+		gcmx.vpa(),
+		gcmx.apiService(),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to serialize the Kubernetes objects: %w", err)
 	}
 
-	err = managedresources.CreateForSeed(ctx, gcmx.client, gcmx.namespace, managedResourceName, false, kubeObjects)
+	err = managedresources.CreateForSeed(ctx, gcmx.client, gcmx.namespace, managedResourceName, false, resurces)
 	if err != nil {
 		return fmt.Errorf("failed to deploy ManagedResource '%s/%s': %w", gcmx.namespace, managedResourceName, err)
 	}
@@ -130,16 +152,7 @@ func (gcmx *gardenerCustomMetrics) WaitCleanup(ctx context.Context) error {
 	return nil
 }
 
-const (
-	componentBaseName           = "gardener-custom-metrics"
-	deploymentName              = componentBaseName
-	managedResourceName         = componentBaseName // The implementing artifacts are deployed to the seed via this MR
-	serviceName                 = componentBaseName
-	serverCertificateSecretName = componentBaseName + "-tls" // GCMx's HTTPS serving certificate
-	managedResourceTimeout      = 2 * time.Minute            // Timeout for ManagedResources to become healthy or deleted
-)
-
-// Deploys the GCMx server TLS certificate to a secret and returns the name of the created secret
+// deployServerCertificate deploys the GCMx server TLS certificate to a secret and returns the created secret.
 func (gcmx *gardenerCustomMetrics) deployServerCertificate(ctx context.Context) (*corev1.Secret, error) {
 	_, found := gcmx.secretsManager.Get(v1beta1constants.SecretNameCASeed)
 	if !found {

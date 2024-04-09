@@ -579,7 +579,7 @@ var _ = Describe("GardenerCustomMetrics", func() {
 			})
 		})
 
-		Describe("WaitCleanup()", func() {
+		Describe("#WaitCleanup", func() {
 			It("should fail when the wait for the managed resource deletion times out", func() {
 				fakeOps.MaxAttempts = 2
 

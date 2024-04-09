@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeobjects
+package gardenercustommetrics
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -23,20 +24,20 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-func makeVPA(namespace string) *vpaautoscalingv1.VerticalPodAutoscaler {
+func (gcmx *gardenerCustomMetrics) vpa() *vpaautoscalingv1.VerticalPodAutoscaler {
 	return &vpaautoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics",
-			Namespace: namespace,
+			Namespace: gcmx.namespace,
 			Labels: map[string]string{
 				"role": "gardener-custom-metrics-vpa",
 			},
 		},
 		Spec: vpaautoscalingv1.VerticalPodAutoscalerSpec{
 			TargetRef: &autoscalingv1.CrossVersionObjectReference{
-				APIVersion: "apps/v1",
+				APIVersion: appsv1.SchemeGroupVersion.String(),
 				Kind:       "Deployment",
-				Name:       "gardener-custom-metrics",
+				Name:       deploymentName,
 			},
 			ResourcePolicy: &vpaautoscalingv1.PodResourcePolicy{
 				ContainerPolicies: []vpaautoscalingv1.ContainerResourcePolicy{

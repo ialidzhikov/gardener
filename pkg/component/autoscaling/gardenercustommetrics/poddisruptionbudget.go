@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeobjects
+package gardenercustommetrics
 
 import (
-	"github.com/Masterminds/semver/v3"
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -23,11 +22,11 @@ import (
 	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
-func makePDB(namespace string, kubernetesVersion *semver.Version) *policyv1.PodDisruptionBudget {
+func (gcmx *gardenerCustomMetrics) podDisruptionBudget() *policyv1.PodDisruptionBudget {
 	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics",
-			Namespace: namespace,
+			Namespace: gcmx.namespace,
 			Labels: map[string]string{
 				"gardener.cloud/role": "gardener-custom-metrics",
 			},
@@ -43,7 +42,7 @@ func makePDB(namespace string, kubernetesVersion *semver.Version) *policyv1.PodD
 		},
 	}
 
-	kubernetesutils.SetAlwaysAllowEviction(pdb, kubernetesVersion)
+	kubernetesutils.SetAlwaysAllowEviction(pdb, gcmx.values.KubernetesVersion)
 
 	return pdb
 }

@@ -12,20 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeobjects
+package gardenercustommetrics
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	"k8s.io/utils/ptr"
 )
 
-func makeServiceAccount(namespace string) *corev1.ServiceAccount {
-	return &corev1.ServiceAccount{
+func (gcmx *gardenerCustomMetrics) apiService() *apiregistrationv1.APIService {
+	return &apiregistrationv1.APIService{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gardener-custom-metrics",
-			Namespace: namespace,
+			Name: "v1beta2.custom.metrics.k8s.io",
 		},
-		AutomountServiceAccountToken: ptr.To(false),
+		Spec: apiregistrationv1.APIServiceSpec{
+			Service: &apiregistrationv1.ServiceReference{
+				Name:      serviceName,
+				Namespace: gcmx.namespace,
+				Port:      ptr.To[int32](443),
+			},
+			Group:                "custom.metrics.k8s.io",
+			Version:              "v1beta2",
+			GroupPriorityMinimum: 100,
+			VersionPriority:      200,
+			// The following enables MITM attack between seed kube-apiserver and GCMx. Not ideal, but it's on par with
+			// the metrics-server setup. For more information, see https://github.com/kubernetes-sigs/metrics-server/issues/544
+			InsecureSkipTLSVerify: true,
+		},
 	}
 }

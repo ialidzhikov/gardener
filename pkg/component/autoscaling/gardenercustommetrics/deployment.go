@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeobjects
+package gardenercustommetrics
 
 import (
 	appsv1 "k8s.io/api/apps/v1"
@@ -24,11 +24,13 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
-func makeDeployment(deploymentName, namespace, containerImageName, serverSecretName string) *appsv1.Deployment {
+const deploymentName = "gardener-custom-metrics"
+
+func (gcmx *gardenerCustomMetrics) deployment(serverSecretName string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
-			Namespace: namespace,
+			Namespace: gcmx.namespace,
 			Labels: map[string]string{
 				"app": "gardener-custom-metrics",
 				// The actual availability requirement of gardener-custom-metrics is closer to the "controller"
@@ -60,7 +62,7 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 					Containers: []corev1.Container{
 						{
 							Name:            "gardener-custom-metrics",
-							Image:           containerImageName,
+							Image:           gcmx.values.Image,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args: []string{
 								"--secure-port=6443",
@@ -113,7 +115,7 @@ func makeDeployment(deploymentName, namespace, containerImageName, serverSecretN
 						},
 					},
 					PriorityClassName:  v1beta1constants.PriorityClassNameSeedSystem700,
-					ServiceAccountName: "gardener-custom-metrics",
+					ServiceAccountName: serviceAccountName,
 					Volumes: []corev1.Volume{
 						{
 							Name: "gardener-custom-metrics-tls",

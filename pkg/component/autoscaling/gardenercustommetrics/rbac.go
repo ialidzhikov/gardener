@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kubeobjects
+package gardenercustommetrics
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func makeRole(namespace string) *rbacv1.Role {
+func (gcmx *gardenerCustomMetrics) role() *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics",
-			Namespace: namespace,
+			Namespace: gcmx.namespace,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -57,28 +57,28 @@ func makeRole(namespace string) *rbacv1.Role {
 	}
 }
 
-func makeRoleBinding(namespace string) *rbacv1.RoleBinding {
+func (gcmx *gardenerCustomMetrics) roleBinding() *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics",
-			Namespace: namespace,
+			Namespace: gcmx.namespace,
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
+			APIGroup: rbacv1.GroupName,
 			Kind:     "Role",
 			Name:     "gardener-custom-metrics",
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "gardener-custom-metrics",
-				Namespace: namespace,
+				Name:      serviceAccountName,
+				Namespace: gcmx.namespace,
 			},
 		},
 	}
 }
 
-func makeClusterRole() *rbacv1.ClusterRole {
+func (gcmx *gardenerCustomMetrics) clusterRole() *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "gardener-custom-metrics",
@@ -93,62 +93,62 @@ func makeClusterRole() *rbacv1.ClusterRole {
 	}
 }
 
-func makeClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
+func (gcmx *gardenerCustomMetrics) clusterRoleBinding() *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "gardener-custom-metrics",
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
+			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
 			Name:     "gardener-custom-metrics",
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "gardener-custom-metrics",
-				Namespace: namespace,
+				Name:      serviceAccountName,
+				Namespace: gcmx.namespace,
 			},
 		},
 	}
 }
 
-func makeAuthDelegatorClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
+func (gcmx *gardenerCustomMetrics) authDelegatorClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "gardener-custom-metrics--system:auth-delegator",
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
+			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
 			Name:     "system:auth-delegator",
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "gardener-custom-metrics",
-				Namespace: namespace,
+				Name:      serviceAccountName,
+				Namespace: gcmx.namespace,
 			},
 		},
 	}
 }
 
-func makeAuthReaderRoleBinding(namespace string) *rbacv1.RoleBinding {
+func (gcmx *gardenerCustomMetrics) authReaderRoleBinding() *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gardener-custom-metrics--auth-reader",
-			Namespace: "kube-system",
+			Namespace: metav1.NamespaceSystem,
 		},
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
+			APIGroup: rbacv1.GroupName,
 			Kind:     "Role",
 			Name:     "extension-apiserver-authentication-reader",
 		},
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "gardener-custom-metrics",
-				Namespace: namespace,
+				Name:      serviceAccountName,
+				Namespace: gcmx.namespace,
 			},
 		},
 	}

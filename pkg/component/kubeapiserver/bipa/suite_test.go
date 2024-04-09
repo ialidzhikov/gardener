@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestPrometheusMetricsAdapter(t *testing.T) {
+func TestBilinearPodAutoscaler(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "BilinearPodAutoscaler component unit test suite")
 }
