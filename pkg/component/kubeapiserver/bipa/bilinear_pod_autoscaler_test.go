@@ -145,8 +145,8 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 
 		// Creates empty control plane objects which superficially mirror the objects deployed by BIPA reconciliation
 		createDummyControlPlaneObjects = func(bipa *BilinearPodAutoscaler) *v1alpha1.ManagedResource {
-			Expect(kubeClient.Create(ctx, bipa.makeEmptyHPA())).To(Succeed())
-			Expect(kubeClient.Create(ctx, bipa.makeEmptyVPA())).To(Succeed())
+			Expect(kubeClient.Create(ctx, bipa.emptyHPA())).To(Succeed())
+			Expect(kubeClient.Create(ctx, bipa.emptyVPA())).To(Succeed())
 
 			mr := &v1alpha1.ManagedResource{
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: "gardener-custom-metrics"},

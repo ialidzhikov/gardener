@@ -84,48 +84,9 @@ func NewBilinearPodAutoscaler(namespace string, deploymentNameApiserver string) 
 	}
 }
 
-// DeleteFromServer removes all BilinearPodAutoscaler artefacts from the shoot control plane.
-// The seedClient parameter specifies a connection to the server hosting said control plane.
-func (bipa *BilinearPodAutoscaler) DeleteFromServer(ctx context.Context, seedClient client.Client) error {
-	baseErrorMessage :=
-		fmt.Sprintf("An error occurred while deleting BilinearPodAutoscaler '%s' in namespace '%s'",
-			bipa.deploymentNameApiserver,
-			bipa.namespace)
-
-	if err := managedresources.DeleteForShoot(ctx, seedClient, bipa.namespace, gardenercustommetrics.ComponentName); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to delete the ManagedResource '%s', which serves as envelope for delivering the resoures from "+
-			"seed to shoot. The error message reported by the underlying operation follows: %w",
-			gardenercustommetrics.ComponentName,
-			err)
-	}
-
-	if err := client.IgnoreNotFound(kubernetesutils.DeleteObject(ctx, seedClient, bipa.makeEmptyHPA())); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to delete the HPA which is part of the BilinearPodAutoscaler from the server. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
-	}
-
-	if err := client.IgnoreNotFound(kubernetesutils.DeleteObject(ctx, seedClient, bipa.makeEmptyVPA())); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to delete the VPA which is part of the BilinearPodAutoscaler from the server. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
-	}
-
-	shootAccessSecret := bipa.makeShootAccessSecret()
-	if err := kubernetesutils.DeleteObjects(ctx, seedClient, shootAccessSecret.Secret); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to delete the secret '%s' from the server. The purpose of that secret is to provide shoot "+
-			"access to the gardener-custom-metrics component, which is deployed as part of the BilinearPodAutoscaler. "+
-			"The error message reported by the underlying operation follows: %w",
-			shootAccessSecret.Secret.Name,
-			err)
-	}
-
-	return nil
-}
+const (
+	managedResourceName = "gardener-custom-metrics"
+)
 
 // Reconcile brings the server-side BilinearPodAutoscaler setup in compliance with the desired state specified by the
 // operation's parameters.
@@ -133,55 +94,56 @@ func (bipa *BilinearPodAutoscaler) DeleteFromServer(ctx context.Context, seedCli
 // The 'parameters' parameter specifies the desired state that is to be applied upon the server-side autoscaler setup.
 func (bipa *BilinearPodAutoscaler) Reconcile(
 	ctx context.Context, seedClient client.Client, parameters *DesiredStateParameters) error {
-	baseErrorMessage :=
-		fmt.Sprintf("An error occurred while reconciling BilinearPodAutoscaler '%s' in namespace '%s'",
-			bipa.deploymentNameApiserver,
-			bipa.namespace)
-
 	if !parameters.IsEnabled {
 		if err := bipa.DeleteFromServer(ctx, seedClient); err != nil {
-			return fmt.Errorf(baseErrorMessage+
-				" - failed to bring the BilinearPodAutoscaler on the server to a fully disabled state. "+
-				"The error message reported by the underlying operation follows: %w",
-				err)
+			return fmt.Errorf("failed to delete the bilinear pod autoscaler component: %w", err)
 		}
 		return nil
 	}
 
 	if err := bipa.reconcileHPA(ctx, seedClient, parameters.MinReplicaCount, parameters.MaxReplicaCount); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to reconcile the HPA which is part of the BilinearPodAutoscaler on the server. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
+		return fmt.Errorf("failed to reconcile HorizontalPodAutoscaler: %w", err)
 	}
 
 	if err := bipa.reconcileVPA(ctx, seedClient, parameters.ContainerNameApiserver, parameters.MinReplicaCount); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to reconcile the VPA which is part of the BilinearPodAutoscaler on the server. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
+		return fmt.Errorf("failed to reconcile VerticalPodAutoscaler: %w", err)
 	}
 
 	// Create shoot access token for metrics scraping by gardener-custom-metrics
 	shootAccessSecret := bipa.makeShootAccessSecret()
 	if err := shootAccessSecret.Reconcile(ctx, seedClient); err != nil {
-		return fmt.Errorf(baseErrorMessage+
-			" - failed to create the shoot access token secret '%s' on the server. "+
-			"That secret is needed by the gardener-custom-metrics component in order to scrape metrics from the "+
-			"shoot's kube-apiserver. "+
-			"The error message reported by the underlying operation follows: %w",
-			shootAccessSecret.Secret.Name,
-			err)
+		return fmt.Errorf("could not reconcile shoot access secret '%s': %w", shootAccessSecret.Secret.Name, err)
 	}
 
 	if err := bipa.reconcileAppResources(ctx, shootAccessSecret.ServiceAccountName, seedClient); err != nil {
-		return err
+		return fmt.Errorf("failed to reconcile application resources: %w", err)
 	}
 
 	return nil
 }
 
-//#region Private implementation
+// DeleteFromServer removes all BilinearPodAutoscaler artefacts from the shoot control plane.
+// The seedClient parameter specifies a connection to the server hosting said control plane.
+func (bipa *BilinearPodAutoscaler) DeleteFromServer(ctx context.Context, seedClient client.Client) error {
+	if err := managedresources.DeleteForShoot(ctx, seedClient, bipa.namespace, managedResourceName); err != nil {
+		return fmt.Errorf("failed to delete ManagedResource '%s/%s': %w", bipa.namespace, managedResourceName, err)
+	}
+
+	if err := kubernetesutils.DeleteObject(ctx, seedClient, bipa.emptyHPA()); err != nil {
+		return fmt.Errorf("failed to delete HorizontalPodAutoscaler '%s': %w", client.ObjectKeyFromObject(bipa.emptyHPA()), err)
+	}
+
+	if err := kubernetesutils.DeleteObject(ctx, seedClient, bipa.emptyVPA()); err != nil {
+		return fmt.Errorf("failed to delete VerticalPodAutoscaler '%s': %w", client.ObjectKeyFromObject(bipa.emptyVPA()), err)
+	}
+
+	shootAccessSecret := bipa.makeShootAccessSecret()
+	if err := kubernetesutils.DeleteObjects(ctx, seedClient, shootAccessSecret.Secret); err != nil {
+		return fmt.Errorf("faield to delete Secret '%s': %w", client.ObjectKeyFromObject(shootAccessSecret.Secret), err)
+	}
+
+	return nil
+}
 
 // GetHPAName returns the name of BilinearPodAutoscaler's server-side HPA.
 func (bipa *BilinearPodAutoscaler) GetHPAName() string {
@@ -193,15 +155,15 @@ func (bipa *BilinearPodAutoscaler) GetVPAName() string {
 	return bipa.deploymentNameApiserver + "-bipa"
 }
 
-// Returns an empty HPA object pointing to the server-side HPA, which is part of this BilinearPodAutoscaler
-func (bipa *BilinearPodAutoscaler) makeEmptyHPA() *autoscalingv2.HorizontalPodAutoscaler {
+// emptyHPA returns an empty HPA object pointing to the server-side HPA, which is part of this BilinearPodAutoscaler.
+func (bipa *BilinearPodAutoscaler) emptyHPA() *autoscalingv2.HorizontalPodAutoscaler {
 	return &autoscalingv2.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{Name: bipa.GetHPAName(), Namespace: bipa.namespace},
 	}
 }
 
-// Returns an empty VPA object pointing to the server-side VPA, which is part of this BilinearPodAutoscaler
-func (bipa *BilinearPodAutoscaler) makeEmptyVPA() *vpaautoscalingv1.VerticalPodAutoscaler {
+// emptyVPA Returns an empty VPA object pointing to the server-side VPA, which is part of this BilinearPodAutoscaler
+func (bipa *BilinearPodAutoscaler) emptyVPA() *vpaautoscalingv1.VerticalPodAutoscaler {
 	return &vpaautoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{Name: bipa.GetVPAName(), Namespace: bipa.namespace},
 	}
@@ -211,7 +173,7 @@ func (bipa *BilinearPodAutoscaler) makeEmptyVPA() *vpaautoscalingv1.VerticalPodA
 // minReplicaCount and maxReplicaCount control the horizontal scaling range.
 func (bipa *BilinearPodAutoscaler) reconcileHPA(
 	ctx context.Context, seedClient client.Client, minReplicaCount int32, maxReplicaCount int32) error {
-	hpa := bipa.makeEmptyHPA()
+	hpa := bipa.emptyHPA()
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, seedClient, hpa, func() error {
 		hpa.Spec.ScaleTargetRef = autoscalingv2.CrossVersionObjectReference{
 			APIVersion: appsv1.SchemeGroupVersion.String(),
@@ -224,14 +186,13 @@ func (bipa *BilinearPodAutoscaler) reconcileHPA(
 			},
 		}
 
-		lvalue300 := resource.MustParse("300")
 		// This is where we direct HPA to use the metric supplied by the gardener-custom-metrics component
 		hpaMetrics := []autoscalingv2.MetricSpec{
 			{
 				Type: autoscalingv2.PodsMetricSourceType,
 				Pods: &autoscalingv2.PodsMetricSource{
 					Metric: autoscalingv2.MetricIdentifier{Name: "shoot:apiserver_request_total:sum"},
-					Target: autoscalingv2.MetricTarget{AverageValue: &lvalue300, Type: autoscalingv2.AverageValueMetricType},
+					Target: autoscalingv2.MetricTarget{AverageValue: ptr.To(resource.MustParse("300")), Type: autoscalingv2.AverageValueMetricType},
 				},
 			},
 		}
@@ -243,21 +204,12 @@ func (bipa *BilinearPodAutoscaler) reconcileHPA(
 		return nil
 	})
 
-	if err != nil {
-		return fmt.Errorf("An error occurred while reconciling the '%s' HPA which is part of the BilinearPodAutoscaler "+
-			"in namespace '%s' - failed to apply the desired configuration values to the server-side object. "+
-			"The error message reported by the underlying operation follows: %w",
-			bipa.GetHPAName(),
-			bipa.namespace,
-			err)
-	}
-
-	return nil
+	return err
 }
 
 // Reconciles the VPA resource which is part of the BilinearPodAutoscaler
 func (bipa *BilinearPodAutoscaler) reconcileVPA(ctx context.Context, seedClient client.Client, containerNameApiserver string, minReplicaCount int32) error {
-	vpa := bipa.makeEmptyVPA()
+	vpa := bipa.emptyVPA()
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, seedClient, vpa, func() error {
 		vpa.Spec.Recommenders = nil
 		vpa.Spec.TargetRef = &autoscalingv1.CrossVersionObjectReference{
@@ -265,50 +217,32 @@ func (bipa *BilinearPodAutoscaler) reconcileVPA(ctx context.Context, seedClient 
 			Kind:       "Deployment",
 			Name:       bipa.deploymentNameApiserver,
 		}
-		updateModeAutoAsLvalue := vpaautoscalingv1.UpdateModeAuto
 		vpa.Spec.UpdatePolicy = &vpaautoscalingv1.PodUpdatePolicy{
 			MinReplicas: &minReplicaCount,
-			UpdateMode:  &updateModeAutoAsLvalue,
+			UpdateMode:  ptr.To(vpaautoscalingv1.UpdateModeAuto),
 		}
 		vpa.Spec.ResourcePolicy = &vpaautoscalingv1.PodResourcePolicy{
-			ContainerPolicies: makeDefaultVPAResourcePolicies(containerNameApiserver),
+			ContainerPolicies: []vpaautoscalingv1.ContainerResourcePolicy{
+				{
+					ContainerName: containerNameApiserver,
+					Mode:          ptr.To(vpaautoscalingv1.ContainerScalingModeAuto),
+					MinAllowed: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("400M"),
+					},
+					MaxAllowed: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("8"),
+						corev1.ResourceMemory: resource.MustParse("25G"),
+					},
+					ControlledValues: ptr.To(vpaautoscalingv1.ContainerControlledValuesRequestsOnly),
+				},
+			},
 		}
 		vpa.ObjectMeta.Labels = map[string]string{v1beta1constants.LabelRole: v1beta1constants.LabelAPIServer + "-vpa"}
 
 		return nil
 	})
 
-	if err != nil {
-		return fmt.Errorf("An error occurred while reconciling the '%s' VPA which is part of the BilinearPodAutoscaler "+
-			"in namespace '%s' - failed to apply the desired configuration values to the server-side object. "+
-			"The error message reported by the underlying operation follows: %w",
-			bipa.GetVPAName(),
-			bipa.namespace,
-			err)
-	}
-
-	return nil
-}
-
-// Creates a list of VPA ContainerResourcePolicy objects, initialised with default settings
-func makeDefaultVPAResourcePolicies(containerNameApiserver string) []vpaautoscalingv1.ContainerResourcePolicy {
-	scalingModeAutoAsLvalue := vpaautoscalingv1.ContainerScalingModeAuto
-	controlledValuesRequestsOnlyAsLvalue := vpaautoscalingv1.ContainerControlledValuesRequestsOnly
-
-	return []vpaautoscalingv1.ContainerResourcePolicy{
-		{
-			ContainerName: containerNameApiserver,
-			Mode:          &scalingModeAutoAsLvalue,
-			MinAllowed: corev1.ResourceList{
-				corev1.ResourceMemory: resource.MustParse("400M"),
-			},
-			MaxAllowed: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("8"),
-				corev1.ResourceMemory: resource.MustParse("25G"),
-			},
-			ControlledValues: &controlledValuesRequestsOnlyAsLvalue,
-		},
-	}
+	return err
 }
 
 // Creates an empty shoot access secret. The name of the resulting object is a fixed function of the input parameters,
@@ -323,9 +257,6 @@ func (bipa *BilinearPodAutoscaler) makeShootAccessSecret() *gardenerutils.Access
 // reconcile deletion.
 func (bipa *BilinearPodAutoscaler) reconcileAppResources(ctx context.Context, serviceAccountName string, seedClient client.Client) error {
 	var (
-		baseErrorMessage = fmt.Sprintf(
-			"An error occurred while applying the BilinearPodAutoscaler resources which belong inside shoot '%s'",
-			bipa.namespace)
 		registry = managedresources.NewRegistry(kubernetes.ShootScheme, kubernetes.ShootCodec, kubernetes.ShootSerializer)
 
 		clusterRole = &rbacv1.ClusterRole{
@@ -359,23 +290,16 @@ func (bipa *BilinearPodAutoscaler) reconcileAppResources(ctx context.Context, se
 
 	data, err := registry.AddAllAndSerialize(clusterRole, clusterRoleBinding)
 	if err != nil {
-		return fmt.Errorf(baseErrorMessage+" - failed to serialize the resources via managed resource registry. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
+		return fmt.Errorf("failed to serialize the Kubernetes objects: %w", err)
 	}
 
 	// The shoot app resources we deploy are used only by gardener-custom-metrics. Thus, we package them in a
 	// managed resource named after gardener-custom-metrics instead of bipa itself.
 	err = managedresources.CreateForShoot(
-		ctx, seedClient, bipa.namespace, gardenercustommetrics.ComponentName, managedresources.LabelValueGardener, false, data)
+		ctx, seedClient, bipa.namespace, managedResourceName, managedresources.LabelValueGardener, false, data)
 	if err != nil {
-		return fmt.Errorf(baseErrorMessage+" - failed to create the ManagedResource object which serves as "+
-			"envelope for delivering the resoures from seed to shoot. "+
-			"The error message reported by the underlying operation follows: %w",
-			err)
+		return fmt.Errorf("failed to deploy ManagedResource '%s/%s': %w", bipa.namespace, managedResourceName, err)
 	}
 
 	return nil
 }
-
-//#endregion Private implementation
