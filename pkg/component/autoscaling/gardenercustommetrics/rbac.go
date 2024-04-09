@@ -19,10 +19,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	roleName        = "gardener.cloud:gardener-custom-metrics"
+	clusterRoleName = "gardener.cloud:gardener-custom-metrics"
+)
+
 func (gcmx *gardenerCustomMetrics) role() *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gardener-custom-metrics",
+			Name:      roleName,
 			Namespace: gcmx.namespace,
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -60,13 +65,13 @@ func (gcmx *gardenerCustomMetrics) role() *rbacv1.Role {
 func (gcmx *gardenerCustomMetrics) roleBinding() *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gardener-custom-metrics",
+			Name:      "gardener.cloud:gardener-custom-metrics",
 			Namespace: gcmx.namespace,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
 			Kind:     "Role",
-			Name:     "gardener-custom-metrics",
+			Name:     roleName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
@@ -81,7 +86,7 @@ func (gcmx *gardenerCustomMetrics) roleBinding() *rbacv1.RoleBinding {
 func (gcmx *gardenerCustomMetrics) clusterRole() *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "gardener-custom-metrics",
+			Name: clusterRoleName,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -96,12 +101,12 @@ func (gcmx *gardenerCustomMetrics) clusterRole() *rbacv1.ClusterRole {
 func (gcmx *gardenerCustomMetrics) clusterRoleBinding() *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "gardener-custom-metrics",
+			Name: "gardener.cloud:gardener-custom-metrics",
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
 			Kind:     "ClusterRole",
-			Name:     "gardener-custom-metrics",
+			Name:     clusterRoleName,
 		},
 		Subjects: []rbacv1.Subject{
 			{
@@ -116,7 +121,7 @@ func (gcmx *gardenerCustomMetrics) clusterRoleBinding() *rbacv1.ClusterRoleBindi
 func (gcmx *gardenerCustomMetrics) authDelegatorClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 	return &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "gardener-custom-metrics--system:auth-delegator",
+			Name: "gardener.cloud:gardener-custom-metrics:auth-delegator",
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: rbacv1.GroupName,
@@ -136,7 +141,7 @@ func (gcmx *gardenerCustomMetrics) authDelegatorClusterRoleBinding() *rbacv1.Clu
 func (gcmx *gardenerCustomMetrics) authReaderRoleBinding() *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gardener-custom-metrics--auth-reader",
+			Name:      "gardener.cloud:gardener-custom-metrics:auth-reader",
 			Namespace: metav1.NamespaceSystem,
 		},
 		RoleRef: rbacv1.RoleRef{

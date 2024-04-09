@@ -119,7 +119,7 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		role = &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "gardener-custom-metrics",
+				Name:      "gardener.cloud:gardener-custom-metrics",
 				Namespace: namespace,
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -154,13 +154,13 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		roleBinding = &rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "gardener-custom-metrics",
+				Name:      "gardener.cloud:gardener-custom-metrics",
 				Namespace: namespace,
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "Role",
-				Name:     "gardener-custom-metrics",
+				Name:     "gardener.cloud:gardener-custom-metrics",
 			},
 			Subjects: []rbacv1.Subject{{
 				Kind:      "ServiceAccount",
@@ -170,7 +170,7 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		clusterRole = &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "gardener-custom-metrics",
+				Name: "gardener.cloud:gardener-custom-metrics",
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -182,12 +182,12 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		clusterRoleBinding = &rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "gardener-custom-metrics",
+				Name: "gardener.cloud:gardener-custom-metrics",
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
-				Name:     "gardener-custom-metrics",
+				Name:     "gardener.cloud:gardener-custom-metrics",
 			},
 			Subjects: []rbacv1.Subject{{
 				Kind:      "ServiceAccount",
@@ -197,7 +197,7 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		authDelegatorClusterRoleBinding = &rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "gardener-custom-metrics--system:auth-delegator",
+				Name: "gardener.cloud:gardener-custom-metrics:auth-delegator",
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
@@ -214,7 +214,7 @@ var _ = Describe("GardenerCustomMetrics", func() {
 		}
 		authReaderRoleBinding = &rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "gardener-custom-metrics--auth-reader",
+				Name:      "gardener.cloud:gardener-custom-metrics:auth-reader",
 				Namespace: "kube-system",
 			},
 			RoleRef: rbacv1.RoleRef{
