@@ -628,7 +628,7 @@ var _ = Describe("KubeAPIServer", func() {
 							To(Succeed())
 						Expect(kapi.Deploy(ctx)).To(Succeed())
 						Expect(c.Get(ctx, client.ObjectKeyFromObject(bipaAutoscalerElement), bipaAutoscalerElement)).
-							To(MatchError(ContainSubstring("not found")))
+							To(BeNotFoundError())
 					}
 				},
 
@@ -655,12 +655,9 @@ var _ = Describe("KubeAPIServer", func() {
 					})
 
 					Expect(c.Get(ctx, client.ObjectKeyFromObject(bipaHpa), bipaHpa)).
-						To(MatchError(ContainSubstring("not found")))
+						To(BeNotFoundError())
 
-					// Act
 					Expect(kapi.Deploy(ctx)).To(Succeed())
-
-					// Assert
 
 					// Check just the presence of BIPA's HPA, as indicator of overall BIPA status. The detailed check
 					// of what gets deployed, is in the dedicated BIPA test
@@ -668,7 +665,7 @@ var _ = Describe("KubeAPIServer", func() {
 						Expect(c.Get(ctx, client.ObjectKeyFromObject(bipaHpa), bipaHpa)).To(Succeed())
 					} else {
 						Expect(c.Get(ctx, client.ObjectKeyFromObject(bipaHpa), bipaHpa)).
-							To(MatchError(ContainSubstring("not found")))
+							To(BeNotFoundError())
 					}
 				},
 

@@ -433,7 +433,8 @@ func (k *kubeAPIServer) Deploy(ctx context.Context) error {
 
 func (k *kubeAPIServer) Destroy(ctx context.Context) error {
 	deployment := k.emptyDeployment()
-	err := NewBilinearPodAutoscaler(k.namespace, deployment.Name).Delete(ctx, k.client.Client())
+	bipa := NewBilinearPodAutoscaler(k.namespace, deployment.Name)
+	err := bipa.Delete(ctx, k.client.Client())
 	if err != nil {
 		return err
 	}

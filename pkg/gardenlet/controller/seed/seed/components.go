@@ -16,7 +16,6 @@ package seed
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	proberapi "github.com/gardener/dependency-watchdog/api/prober"
@@ -512,12 +511,7 @@ func (r *Reconciler) newGardenerCustomMetics(secretsManager secretsmanager.Inter
 	image, err := imagevector.ImageVector().FindImage(
 		imagevector.ImageNameGardenerCustomMetics, imagevectorutils.TargetVersion(r.SeedVersion.String()))
 	if err != nil {
-		return nil, fmt.Errorf("An error occurred while creating the %s component - "+
-			"failed to find an image version suitable for seed version '%s' in the image vector. "+
-			"The error message reported by the underlying operation follows: %w",
-			imagevector.ImageNameGardenerCustomMetics,
-			r.SeedVersion,
-			err)
+		return nil, err
 	}
 
 	values := gardenercustommetrics.Values{

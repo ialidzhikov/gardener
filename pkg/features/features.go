@@ -68,7 +68,7 @@ const (
 	// BilinearAutoscaling is applied to a seed cluster and enables simultaneous independent horizontal and vertical scaling.
 	// This feature is incompatible with the HVPA and HVPAForShootedSeed features.
 	// owner @andrerun
-	// alpha: v1.91.0
+	// alpha: v1.92.0
 	BilinearAutoscaling featuregate.Feature = "BilinearAutoscaling"
 )
 
