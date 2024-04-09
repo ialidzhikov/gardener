@@ -35,9 +35,6 @@ import (
 )
 
 const (
-	// ComponentName is the component name.
-	ComponentName = "gardener-custom-metrics"
-
 	managedResourceName         = "gardener-custom-metrics"
 	serverCertificateSecretName = "gardener-custom-metrics-tls"
 	// managedResourceTimeout is the timeout used while waiting for the ManagedResources to become healthy or

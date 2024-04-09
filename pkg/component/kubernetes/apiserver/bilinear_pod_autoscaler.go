@@ -43,7 +43,6 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
-	"github.com/gardener/gardener/pkg/component/autoscaling/gardenercustommetrics"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenerutils "github.com/gardener/gardener/pkg/utils/gardener"
 	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -85,7 +84,8 @@ func NewBilinearPodAutoscaler(namespace string, deploymentNameApiserver string) 
 }
 
 const (
-	managedResourceName = "gardener-custom-metrics"
+	managedResourceName   = "gardener-custom-metrics"
+	shootAccessSecretName = "gardener-custom-metrics"
 )
 
 // Reconcile brings the server-side BilinearPodAutoscaler setup in compliance with the desired state specified by the
@@ -110,7 +110,7 @@ func (bipa *BilinearPodAutoscaler) Reconcile(
 	}
 
 	// Create shoot access token for metrics scraping by gardener-custom-metrics
-	shootAccessSecret := bipa.makeShootAccessSecret()
+	shootAccessSecret := bipa.emptyShootAccessSecret()
 	if err := shootAccessSecret.Reconcile(ctx, seedClient); err != nil {
 		return fmt.Errorf("could not reconcile shoot access secret '%s': %w", shootAccessSecret.Secret.Name, err)
 	}
@@ -137,7 +137,7 @@ func (bipa *BilinearPodAutoscaler) DeleteFromServer(ctx context.Context, seedCli
 		return fmt.Errorf("failed to delete VerticalPodAutoscaler '%s': %w", client.ObjectKeyFromObject(bipa.emptyVPA()), err)
 	}
 
-	shootAccessSecret := bipa.makeShootAccessSecret()
+	shootAccessSecret := bipa.emptyShootAccessSecret()
 	if err := kubernetesutils.DeleteObjects(ctx, seedClient, shootAccessSecret.Secret); err != nil {
 		return fmt.Errorf("faield to delete Secret '%s': %w", client.ObjectKeyFromObject(shootAccessSecret.Secret), err)
 	}
@@ -245,11 +245,11 @@ func (bipa *BilinearPodAutoscaler) reconcileVPA(ctx context.Context, seedClient 
 	return err
 }
 
-// Creates an empty shoot access secret. The name of the resulting object is a fixed function of the input parameters,
+// emptyShootAccessSecret creates an empty shoot access secret. The name of the resulting object is a fixed function of the input parameters,
 // so two instances created with the same parameters point to the same server side object.
-func (bipa *BilinearPodAutoscaler) makeShootAccessSecret() *gardenerutils.AccessSecret {
+func (bipa *BilinearPodAutoscaler) emptyShootAccessSecret() *gardenerutils.AccessSecret {
 	return gardenerutils.
-		NewShootAccessSecret(gardenercustommetrics.ComponentName, bipa.namespace).
+		NewShootAccessSecret(shootAccessSecretName, bipa.namespace).
 		WithSecretLabels(map[string]string{"name": "shoot-access-gardener-custom-metrics"})
 }
 
