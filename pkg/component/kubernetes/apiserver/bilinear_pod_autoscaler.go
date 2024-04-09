@@ -23,7 +23,7 @@ rough estimate comes with a substantial safety margin which is offset by VPA shr
 The VPA element is a typical VPA setup acting on both CPU and memory. The goal of VPA is to vertically adjust the
 replicas provided based on HPA's rough estimate, to a scale that best matches the actual need for compute power.
 */
-package bipa
+package apiserver
 
 import (
 	"context"

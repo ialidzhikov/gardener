@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bipa
+package apiserver_test
 
 import (
 	"context"
@@ -32,6 +32,7 @@ import (
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
+	. "github.com/gardener/gardener/pkg/component/kubernetes/apiserver"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 )
 
@@ -48,7 +49,6 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 		kubeClient client.Client
 		ctx        = context.Background()
 
-		//#region Helpers
 		assertObjectNotOnServer = func(obj client.Object, name string) {
 			err := kubeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: name}, obj)
 			ExpectWithOffset(1, err).To(HaveOccurred())
@@ -144,9 +144,21 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 		}
 
 		// Creates empty control plane objects which superficially mirror the objects deployed by BIPA reconciliation
-		createDummyControlPlaneObjects = func(bipa *BilinearPodAutoscaler) *v1alpha1.ManagedResource {
-			Expect(kubeClient.Create(ctx, bipa.emptyHPA())).To(Succeed())
-			Expect(kubeClient.Create(ctx, bipa.emptyVPA())).To(Succeed())
+		createDummyControlPlaneObjects = func() *v1alpha1.ManagedResource {
+			hpa := &autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      hpaName,
+					Namespace: namespaceName,
+				},
+			}
+			vpa := &vpaautoscalingv1.VerticalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vpaName,
+					Namespace: namespaceName,
+				},
+			}
+			Expect(kubeClient.Create(ctx, hpa)).To(Succeed())
+			Expect(kubeClient.Create(ctx, vpa)).To(Succeed())
 
 			mr := &v1alpha1.ManagedResource{
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: "gardener-custom-metrics"},
@@ -155,7 +167,6 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 
 			return mr
 		}
-		//#endregion Helpers
 	)
 
 	BeforeEach(func() {
@@ -239,7 +250,7 @@ subjects:
 			It("should remove the respective resources already in the shoot control plane", func() {
 				// Arrange
 				bipa, desiredState := newBipa(true)
-				mr := createDummyControlPlaneObjects(bipa)
+				mr := createDummyControlPlaneObjects()
 				desiredState.IsEnabled = false
 
 				// Act
@@ -257,7 +268,7 @@ subjects:
 			It("should remove the respective resources in the shoot control plane", func() {
 				// Arrange
 				bipa, _ := newBipa(true)
-				createDummyControlPlaneObjects(bipa)
+				createDummyControlPlaneObjects()
 
 				// Act
 				Expect(bipa.DeleteFromServer(ctx, kubeClient)).To(Succeed())
@@ -284,7 +295,7 @@ subjects:
 			It("should remove the respective resources in the shoot control plane", func() {
 				// Arrange
 				bipa, desiredState := newBipa(true)
-				createDummyControlPlaneObjects(bipa)
+				createDummyControlPlaneObjects()
 				desiredState.IsEnabled = false
 
 				// Act
