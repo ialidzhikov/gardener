@@ -19,9 +19,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	vpaautoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
@@ -33,38 +35,28 @@ import (
 	"github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	. "github.com/gardener/gardener/pkg/component/kubernetes/apiserver"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
+	. "github.com/gardener/gardener/pkg/utils/test/matchers"
 )
 
 var _ = Describe("BilinearPodAutoscaler", func() {
 	const (
 		containerNameApiserver = "kube-apiserver"
+		deploymentName         = "test-deployment"
+		namespaceName          = "test-namespace"
+		hpaName                = deploymentName + "-bipa"
+		vpaName                = hpaName
 	)
-	var (
-		deploymentName = "test-deployment"
-		namespaceName  = "test-namespace"
-		hpaName        = deploymentName + "-bipa"
-		vpaName        = hpaName
 
+	var (
 		fakeClient client.Client
 		ctx        = context.Background()
 
-		assertObjectNotOnServer = func(obj client.Object, name string) {
-			err := fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: name}, obj)
-			ExpectWithOffset(1, err).To(HaveOccurred())
-			ExpectWithOffset(1, err).To(matchers.BeNotFoundError())
-		}
+		bipa      *BilinearPodAutoscaler
+		consistOf func(object ...client.Object) types.GomegaMatcher
 
-		newBipa = func(isEnabled bool) (*BilinearPodAutoscaler, *DesiredStateParameters) {
-			return NewBilinearPodAutoscaler(namespaceName, deploymentName),
-				&DesiredStateParameters{
-					MinReplicaCount:        1,
-					MaxReplicaCount:        4,
-					ContainerNameApiserver: containerNameApiserver,
-				}
-		}
+		expectedVPA *vpaautoscalingv1.VerticalPodAutoscaler
 
-		newExpectedHpa = func(minReplicaCount int32, maxReplicaCount int32) *autoscalingv2.HorizontalPodAutoscaler {
+		hpaFor = func(minReplicas, maxReplicas int32) *autoscalingv2.HorizontalPodAutoscaler {
 			return &autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            hpaName,
@@ -73,8 +65,8 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 					ResourceVersion: "1",
 				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
-					MinReplicas: &minReplicaCount,
-					MaxReplicas: maxReplicaCount,
+					MinReplicas: ptr.To[int32](minReplicas),
+					MaxReplicas: maxReplicas,
 					ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
 						APIVersion: "apps/v1",
 						Kind:       "Deployment",
@@ -98,46 +90,8 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 			}
 		}
 
-		newExpectedVpa = func() *vpaautoscalingv1.VerticalPodAutoscaler {
-			return &vpaautoscalingv1.VerticalPodAutoscaler{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            vpaName,
-					Namespace:       namespaceName,
-					Labels:          map[string]string{v1beta1constants.LabelRole: v1beta1constants.LabelAPIServer + "-vpa"},
-					ResourceVersion: "1",
-				},
-				Spec: vpaautoscalingv1.VerticalPodAutoscalerSpec{
-					TargetRef: &autoscalingv1.CrossVersionObjectReference{
-						APIVersion: "apps/v1",
-						Kind:       "Deployment",
-						Name:       deploymentName,
-					},
-					UpdatePolicy: &vpaautoscalingv1.PodUpdatePolicy{
-						MinReplicas: ptr.To[int32](1),
-						UpdateMode:  ptr.To(vpaautoscalingv1.UpdateModeAuto),
-					},
-					ResourcePolicy: &vpaautoscalingv1.PodResourcePolicy{
-						ContainerPolicies: []vpaautoscalingv1.ContainerResourcePolicy{
-							{
-								ContainerName: containerNameApiserver,
-								Mode:          ptr.To(vpaautoscalingv1.ContainerScalingModeAuto),
-								MinAllowed: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("400M"),
-								},
-								MaxAllowed: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("8"),
-									corev1.ResourceMemory: resource.MustParse("25G"),
-								},
-								ControlledValues: ptr.To(vpaautoscalingv1.ContainerControlledValuesRequestsOnly),
-							},
-						},
-					},
-				},
-			}
-		}
-
 		// Creates empty control plane objects which superficially mirror the objects deployed by BIPA reconciliation
-		createDummyControlPlaneObjects = func() *v1alpha1.ManagedResource {
+		createBilinearPodAutoscalerObjects = func() {
 			hpa := &autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      hpaName,
@@ -157,94 +111,127 @@ var _ = Describe("BilinearPodAutoscaler", func() {
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: "gardener-custom-metrics"},
 			}
 			Expect(fakeClient.Create(ctx, mr)).To(Succeed())
-
-			return mr
 		}
 	)
 
 	BeforeEach(func() {
 		fakeClient = fakeclient.NewClientBuilder().WithScheme(kubernetes.SeedScheme).Build()
+
+		bipa = NewBilinearPodAutoscaler(namespaceName, deploymentName)
+		consistOf = NewManagedResourceConsistOfObjectsMatcher(fakeClient)
+
+		expectedVPA = &vpaautoscalingv1.VerticalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            vpaName,
+				Namespace:       namespaceName,
+				Labels:          map[string]string{v1beta1constants.LabelRole: v1beta1constants.LabelAPIServer + "-vpa"},
+				ResourceVersion: "1",
+			},
+			Spec: vpaautoscalingv1.VerticalPodAutoscalerSpec{
+				TargetRef: &autoscalingv1.CrossVersionObjectReference{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Name:       deploymentName,
+				},
+				UpdatePolicy: &vpaautoscalingv1.PodUpdatePolicy{
+					MinReplicas: ptr.To[int32](1),
+					UpdateMode:  ptr.To(vpaautoscalingv1.UpdateModeAuto),
+				},
+				ResourcePolicy: &vpaautoscalingv1.PodResourcePolicy{
+					ContainerPolicies: []vpaautoscalingv1.ContainerResourcePolicy{
+						{
+							ContainerName: containerNameApiserver,
+							Mode:          ptr.To(vpaautoscalingv1.ContainerScalingModeAuto),
+							MinAllowed: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("400M"),
+							},
+							MaxAllowed: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("8"),
+								corev1.ResourceMemory: resource.MustParse("25G"),
+							},
+							ControlledValues: ptr.To(vpaautoscalingv1.ContainerControlledValuesRequestsOnly),
+						},
+					},
+				},
+			},
+		}
 	})
 
 	Describe("#Reconcile", func() {
 		It("should deploy the correct resources to the shoot control plane", func() {
-			bipa, desiredState := newBipa(true)
-			expectedClusterRole := `apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  creationTimestamp: null
-  name: gardener.cloud:monitoring:gardener-custom-metrics-target
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
-`
+			clusterRole := &rbacv1.ClusterRole{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gardener.cloud:monitoring:gardener-custom-metrics-target",
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						NonResourceURLs: []string{"/metrics"},
+						Verbs:           []string{"get"},
+					},
+				},
+			}
+			clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "gardener.cloud:monitoring:gardener-custom-metrics-target",
+					Annotations: map[string]string{"resources.gardener.cloud/delete-on-invalid-update": "true"},
+				},
+				RoleRef: rbacv1.RoleRef{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "ClusterRole",
+					Name:     "gardener.cloud:monitoring:gardener-custom-metrics-target",
+				},
+				Subjects: []rbacv1.Subject{{
+					Kind:      "ServiceAccount",
+					Name:      "gardener-custom-metrics",
+					Namespace: "kube-system",
+				}},
+			}
 
-			expectedCrb := `apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  annotations:
-    resources.gardener.cloud/delete-on-invalid-update: "true"
-  creationTimestamp: null
-  name: gardener.cloud:monitoring:gardener-custom-metrics-target
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: gardener.cloud:monitoring:gardener-custom-metrics-target
-subjects:
-- kind: ServiceAccount
-  name: gardener-custom-metrics
-  namespace: kube-system
-`
+			parameters := &DesiredStateParameters{
+				MinReplicaCount:        1,
+				MaxReplicaCount:        4,
+				ContainerNameApiserver: containerNameApiserver,
+			}
+			Expect(bipa.Reconcile(ctx, fakeClient, parameters)).To(Succeed())
 
-			Expect(bipa.Reconcile(ctx, fakeClient, desiredState)).To(Succeed())
-
-			actualHpa := autoscalingv2.HorizontalPodAutoscaler{}
-			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &actualHpa)).
+			actualHPA := autoscalingv2.HorizontalPodAutoscaler{}
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &actualHPA)).
 				To(Succeed())
-			Expect(&actualHpa).
-				To(matchers.DeepEqual(newExpectedHpa(desiredState.MinReplicaCount, desiredState.MaxReplicaCount)))
+			Expect(&actualHPA).
+				To(DeepEqual(hpaFor(parameters.MinReplicaCount, parameters.MaxReplicaCount)))
 
-			actualVpa := vpaautoscalingv1.VerticalPodAutoscaler{}
-			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: vpaName}, &actualVpa)).
+			actualVPA := vpaautoscalingv1.VerticalPodAutoscaler{}
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: vpaName}, &actualVPA)).
 				To(Succeed())
-			Expect(&actualVpa).To(matchers.DeepEqual(newExpectedVpa()))
+			Expect(&actualVPA).To(DeepEqual(expectedVPA))
 
-			actualMr := v1alpha1.ManagedResource{}
-			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "gardener-custom-metrics"}, &actualMr)).
+			actualMr := &v1alpha1.ManagedResource{}
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "gardener-custom-metrics"}, actualMr)).
 				To(Succeed())
-			Expect(actualMr.Spec.SecretRefs).To(HaveLen(1))
-			actualSecret := &corev1.Secret{}
-			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: actualMr.Spec.SecretRefs[0].Name}, actualSecret)).
-				To(Succeed())
-			Expect(actualSecret.Data).To(HaveLen(2))
-			Expect(actualSecret.Data["clusterrole____gardener.cloud_monitoring_gardener-custom-metrics-target.yaml"]).To(Equal([]byte(expectedClusterRole)))
-			Expect(actualSecret.Data["clusterrolebinding____gardener.cloud_monitoring_gardener-custom-metrics-target.yaml"]).To(Equal([]byte(expectedCrb)))
+			Expect(actualMr).To(consistOf(
+				clusterRole,
+				clusterRoleBinding,
+			))
 		})
 	})
 
 	Describe("#Delete", func() {
 		It("should remove the respective resources in the shoot control plane", func() {
-			bipa, _ := newBipa(true)
-			createDummyControlPlaneObjects()
+			createBilinearPodAutoscalerObjects()
 
 			Expect(bipa.Delete(ctx, fakeClient)).To(Succeed())
 
-			assertObjectNotOnServer(&autoscalingv2.HorizontalPodAutoscaler{}, hpaName)
-			assertObjectNotOnServer(&vpaautoscalingv1.VerticalPodAutoscaler{}, vpaName)
-			assertObjectNotOnServer(&v1alpha1.ManagedResource{}, "gardener-custom-metrics")
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &autoscalingv2.HorizontalPodAutoscaler{})).To(BeNotFoundError())
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &vpaautoscalingv1.VerticalPodAutoscaler{})).To(BeNotFoundError())
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "gardener-custom-metrics"}, &vpaautoscalingv1.VerticalPodAutoscaler{})).To(BeNotFoundError())
 		})
 
 		It("should not fail if resources are missing on the seed", func() {
-			bipa, _ := newBipa(true)
+			Expect(bipa.Delete(ctx, fakeClient)).To(Succeed())
 
-			err := bipa.Delete(ctx, fakeClient)
-
-			Expect(err).To(Succeed())
-			assertObjectNotOnServer(&autoscalingv2.HorizontalPodAutoscaler{}, hpaName)
-			assertObjectNotOnServer(&vpaautoscalingv1.VerticalPodAutoscaler{}, vpaName)
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &autoscalingv2.HorizontalPodAutoscaler{})).To(BeNotFoundError())
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: hpaName}, &vpaautoscalingv1.VerticalPodAutoscaler{})).To(BeNotFoundError())
+			Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "gardener-custom-metrics"}, &vpaautoscalingv1.VerticalPodAutoscaler{})).To(BeNotFoundError())
 		})
-
 	})
 })
