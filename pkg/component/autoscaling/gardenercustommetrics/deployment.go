@@ -22,6 +22,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 )
 
 const deploymentName = "gardener-custom-metrics"
@@ -32,11 +33,8 @@ func (gcmx *gardenerCustomMetrics) deployment(serverSecretName string) *appsv1.D
 			Name:      deploymentName,
 			Namespace: gcmx.namespace,
 			Labels: map[string]string{
-				"app": "gardener-custom-metrics",
-				// The actual availability requirement of gardener-custom-metrics is closer to the "controller"
-				// availability level (even less, actually). The value below is set to "server" solely to satisfy
-				// the requirement for consistency with existing components.
-				"high-availability-config.resources.gardener.cloud/type": "server",
+				v1beta1constants.LabelApp:                    "gardener-custom-metrics",
+				resourcesv1alpha1.HighAvailabilityConfigType: resourcesv1alpha1.HighAvailabilityConfigTypeServer,
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -44,18 +42,18 @@ func (gcmx *gardenerCustomMetrics) deployment(serverSecretName string) *appsv1.D
 			RevisionHistoryLimit: ptr.To[int32](2),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":                 "gardener-custom-metrics",
-					"gardener.cloud/role": "gardener-custom-metrics",
+					v1beta1constants.LabelApp:   "gardener-custom-metrics",
+					v1beta1constants.GardenRole: "gardener-custom-metrics",
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app":                              "gardener-custom-metrics",
-						"gardener.cloud/role":              "gardener-custom-metrics",
-						"networking.gardener.cloud/to-dns": "allowed",
-						"networking.gardener.cloud/to-runtime-apiserver":                           "allowed",
-						"networking.resources.gardener.cloud/to-all-shoots-kube-apiserver-tcp-443": "allowed",
+						v1beta1constants.LabelApp:                                                  "gardener-custom-metrics",
+						v1beta1constants.GardenRole:                                                "gardener-custom-metrics",
+						v1beta1constants.LabelNetworkPolicyToDNS:                                   v1beta1constants.LabelNetworkPolicyAllowed,
+						v1beta1constants.LabelNetworkPolicyToRuntimeAPIServer:                      v1beta1constants.LabelNetworkPolicyAllowed,
+						"networking.resources.gardener.cloud/to-all-shoots-kube-apiserver-tcp-443": v1beta1constants.LabelNetworkPolicyAllowed,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -69,7 +67,7 @@ func (gcmx *gardenerCustomMetrics) deployment(serverSecretName string) *appsv1.D
 								"--tls-cert-file=/var/run/secrets/gardener.cloud/tls/tls.crt",
 								"--tls-private-key-file=/var/run/secrets/gardener.cloud/tls/tls.key",
 								"--leader-election=true",
-								"--namespace=garden",
+								"--namespace=" + gcmx.namespace,
 								"--access-ip=$(POD_IP)",
 								"--access-port=6443",
 								"--log-level=74",

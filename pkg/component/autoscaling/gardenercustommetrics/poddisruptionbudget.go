@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
@@ -28,15 +29,15 @@ func (gcmx *gardenerCustomMetrics) podDisruptionBudget() *policyv1.PodDisruption
 			Name:      "gardener-custom-metrics",
 			Namespace: gcmx.namespace,
 			Labels: map[string]string{
-				"gardener.cloud/role": "gardener-custom-metrics",
+				v1beta1constants.GardenRole: "gardener-custom-metrics",
 			},
 		},
 		Spec: policyv1.PodDisruptionBudgetSpec{
 			MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app":                 "gardener-custom-metrics",
-					"gardener.cloud/role": "gardener-custom-metrics",
+					v1beta1constants.LabelApp:   "gardener-custom-metrics",
+					v1beta1constants.GardenRole: "gardener-custom-metrics",
 				},
 			},
 		},
