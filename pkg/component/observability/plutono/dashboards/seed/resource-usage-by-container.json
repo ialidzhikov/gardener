@@ -1,0 +1,661 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Plutono --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "iteration": 1712929394518,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 8,
+      "panels": [],
+      "title": "CPU",
+      "type": "row"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 4,
+      "legend": {
+        "alignAsTable": true,
+        "avg": true,
+        "current": true,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.29",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/Requests|Limits/",
+          "dashes": true
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "seed:container_cpu_usage_seconds_total:sum_by_container{container=\"$container\"}",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Usage",
+          "refId": "A"
+        },
+        {
+          "exemplar": true,
+          "expr": "seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container{container=\"$container\"}",
+          "interval": "",
+          "legendFormat": "Requests",
+          "refId": "B"
+        },
+        {
+          "exemplar": true,
+          "expr": "seed:kube_pod_container_resource_limits_cpu_cores:sum_by_container{container=\"$container\"}",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Limits",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "CPU Usage",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:370",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:371",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "hiddenSeries": false,
+      "id": 6,
+      "legend": {
+        "alignAsTable": true,
+        "avg": true,
+        "current": true,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.29",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "100 * seed:container_cpu_usage_seconds_total:sum_by_container{container=\"$container\"} / seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container{container=\"$container\"}",
+          "interval": "",
+          "legendFormat": "Utilization",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "CPU Utilization",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:59",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:60",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 2,
+      "panels": [],
+      "title": "Memory",
+      "type": "row"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "hiddenSeries": false,
+      "id": 10,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.29",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Memory Usage",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:602",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:603",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "hiddenSeries": false,
+      "id": 12,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.29",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Memory Utilization",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:760",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:761",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    }
+  ],
+  "refresh": false,
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "allValue": null,
+        "current": {
+          "selected": false,
+          "text": "gardener-apiserver",
+          "value": "gardener-apiserver"
+        },
+        "datasource": null,
+        "definition": "label_values(seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container, container)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "container",
+        "options": [
+          {
+            "selected": false,
+            "text": "admission-controller",
+            "value": "admission-controller"
+          },
+          {
+            "selected": false,
+            "text": "calico-node",
+            "value": "calico-node"
+          },
+          {
+            "selected": false,
+            "text": "config-reloader",
+            "value": "config-reloader"
+          },
+          {
+            "selected": false,
+            "text": "coredns",
+            "value": "coredns"
+          },
+          {
+            "selected": false,
+            "text": "curator",
+            "value": "curator"
+          },
+          {
+            "selected": false,
+            "text": "dependency-watchdog",
+            "value": "dependency-watchdog"
+          },
+          {
+            "selected": false,
+            "text": "discovery",
+            "value": "discovery"
+          },
+          {
+            "selected": false,
+            "text": "etcd",
+            "value": "etcd"
+          },
+          {
+            "selected": false,
+            "text": "etcd-druid",
+            "value": "etcd-druid"
+          },
+          {
+            "selected": false,
+            "text": "fluent-bit",
+            "value": "fluent-bit"
+          },
+          {
+            "selected": false,
+            "text": "fluent-operator",
+            "value": "fluent-operator"
+          },
+          {
+            "selected": false,
+            "text": "gardener-admission-controller",
+            "value": "gardener-admission-controller"
+          },
+          {
+            "selected": true,
+            "text": "gardener-apiserver",
+            "value": "gardener-apiserver"
+          },
+          {
+            "selected": false,
+            "text": "gardener-controller-manager",
+            "value": "gardener-controller-manager"
+          },
+          {
+            "selected": false,
+            "text": "gardener-resource-manager",
+            "value": "gardener-resource-manager"
+          },
+          {
+            "selected": false,
+            "text": "gardener-scheduler",
+            "value": "gardener-scheduler"
+          },
+          {
+            "selected": false,
+            "text": "gardenlet",
+            "value": "gardenlet"
+          },
+          {
+            "selected": false,
+            "text": "hvpa-controller",
+            "value": "hvpa-controller"
+          },
+          {
+            "selected": false,
+            "text": "istio-proxy",
+            "value": "istio-proxy"
+          },
+          {
+            "selected": false,
+            "text": "kube-apiserver",
+            "value": "kube-apiserver"
+          },
+          {
+            "selected": false,
+            "text": "kube-controller-manager",
+            "value": "kube-controller-manager"
+          },
+          {
+            "selected": false,
+            "text": "kube-scheduler",
+            "value": "kube-scheduler"
+          },
+          {
+            "selected": false,
+            "text": "kube-state-metrics",
+            "value": "kube-state-metrics"
+          },
+          {
+            "selected": false,
+            "text": "metrics-server",
+            "value": "metrics-server"
+          },
+          {
+            "selected": false,
+            "text": "nginx-ingress-controller",
+            "value": "nginx-ingress-controller"
+          },
+          {
+            "selected": false,
+            "text": "nginx-ingress-k8s-backend",
+            "value": "nginx-ingress-k8s-backend"
+          },
+          {
+            "selected": false,
+            "text": "plutono",
+            "value": "plutono"
+          },
+          {
+            "selected": false,
+            "text": "prometheus",
+            "value": "prometheus"
+          },
+          {
+            "selected": false,
+            "text": "prometheus-operator",
+            "value": "prometheus-operator"
+          },
+          {
+            "selected": false,
+            "text": "recommender",
+            "value": "recommender"
+          },
+          {
+            "selected": false,
+            "text": "reversed-vpn-auth-server",
+            "value": "reversed-vpn-auth-server"
+          },
+          {
+            "selected": false,
+            "text": "updater",
+            "value": "updater"
+          },
+          {
+            "selected": false,
+            "text": "vali",
+            "value": "vali"
+          },
+          {
+            "selected": false,
+            "text": "gardener-extension-provider-local",
+            "value": "gardener-extension-provider-local"
+          }
+        ],
+        "query": {
+          "query": "label_values(seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container, container)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 0,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Resource usage by container",
+  "uid": "resource-usage-by-container",
+  "version": 1
+}
