@@ -16,7 +16,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1712929394518,
+  "id": 25,
+  "iteration": 1713799019745,
   "links": [],
   "panels": [
     {
@@ -87,7 +88,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "seed:container_cpu_usage_seconds_total:sum_by_container{container=\"$container\"}",
+          "expr": "sum by (seed) (seed:container_cpu_usage_seconds_total:sum_by_container{container=\"$container\"})",
           "hide": false,
           "interval": "",
           "legendFormat": "Usage",
@@ -129,7 +130,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:370",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -138,7 +138,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:371",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -227,7 +226,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:59",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -236,7 +234,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:60",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -328,7 +325,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:602",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -337,7 +333,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:603",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -415,7 +410,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:760",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -424,7 +418,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:761",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -448,9 +441,76 @@
       {
         "allValue": null,
         "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": null,
+        "definition": "label_values(seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container, seed)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": false,
+        "name": "seed",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "az-ha",
+            "value": "az-ha"
+          },
+          {
+            "selected": false,
+            "text": "gcp-ha",
+            "value": "gcp-ha"
+          },
+          {
+            "selected": false,
+            "text": "gcp-cilium",
+            "value": "gcp-cilium"
+          },
+          {
+            "selected": false,
+            "text": "soil-gcp-regional",
+            "value": "soil-gcp-regional"
+          },
+          {
+            "selected": false,
+            "text": "ali-ha",
+            "value": "ali-ha"
+          },
+          {
+            "selected": false,
+            "text": "aws-ha",
+            "value": "aws-ha"
+          }
+        ],
+        "query": {
+          "query": "label_values(seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container, seed)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 0,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {
           "selected": false,
-          "text": "gardener-apiserver",
-          "value": "gardener-apiserver"
+          "text": "kube-apiserver",
+          "value": "kube-apiserver"
         },
         "datasource": null,
         "definition": "label_values(seed:kube_pod_container_resource_requests_cpu_cores:sum_by_container, container)",
@@ -523,7 +583,7 @@
             "value": "gardener-admission-controller"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "gardener-apiserver",
             "value": "gardener-apiserver"
           },
@@ -558,7 +618,7 @@
             "value": "istio-proxy"
           },
           {
-            "selected": false,
+            "selected": true,
             "text": "kube-apiserver",
             "value": "kube-apiserver"
           },
@@ -657,5 +717,5 @@
   "timezone": "",
   "title": "Resource usage by container",
   "uid": "resource-usage-by-container",
-  "version": 1
+  "version": 4
 }
