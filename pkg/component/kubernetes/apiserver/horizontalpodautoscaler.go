@@ -20,6 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
@@ -44,12 +45,20 @@ func (k *kubeAPIServer) emptyHorizontalPodAutoscaler() *autoscalingv2.Horizontal
 }
 
 func (k *kubeAPIServer) reconcileHorizontalPodAutoscaler(ctx context.Context, hpa *autoscalingv2.HorizontalPodAutoscaler, deployment *appsv1.Deployment) error {
-	if k.values.Autoscaling.Mode != apiserver.AutoscalingModeBaseline ||
+	if k.values.Autoscaling.Mode == apiserver.AutoscalingModeHVPA ||
 		k.values.Autoscaling.Replicas == nil ||
 		*k.values.Autoscaling.Replicas == 0 {
 		return kubernetesutils.DeleteObject(ctx, k.client.Client(), hpa)
 	}
 
+	if k.values.Autoscaling.Mode == apiserver.AutoscalingModeVPAAndHPA {
+		return k.reconcileHorizontalPodAutoscalerInVPAAndHPAMode(ctx, hpa, deployment)
+	}
+
+	return k.reconcileHorizontalPodAutoscalerInBaselineMode(ctx, hpa, deployment)
+}
+
+func (k *kubeAPIServer) reconcileHorizontalPodAutoscalerInBaselineMode(ctx context.Context, hpa *autoscalingv2.HorizontalPodAutoscaler, deployment *appsv1.Deployment) error {
 	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, k.client.Client(), hpa, func() error {
 		hpa.Spec = autoscalingv2.HorizontalPodAutoscalerSpec{
 			MinReplicas: &k.values.Autoscaling.MinReplicas,
@@ -85,6 +94,49 @@ func (k *kubeAPIServer) reconcileHorizontalPodAutoscaler(ctx context.Context, hp
 
 		return nil
 	})
+	return err
+}
 
+func (k *kubeAPIServer) reconcileHorizontalPodAutoscalerInVPAAndHPAMode(ctx context.Context, hpa *autoscalingv2.HorizontalPodAutoscaler, deployment *appsv1.Deployment) error {
+	// The choosen value is 6 CPU: 1 CPU less than the VPA's maxAllowed 7 CPU in VPAAndHPA mode to have a headroom for the horizontal scaling.
+	hpaTargetAverageValueCPU := resource.MustParse("6")
+	// The choosen value is 24G: 4G less than the VPA's maxAllowed 28G in VPAAndHPA mode to have a headroom for the horizontal scaling.
+	hpaTargetAverageValueMemory := resource.MustParse("24G")
+
+	_, err := controllerutils.GetAndCreateOrMergePatch(ctx, k.client.Client(), hpa, func() error {
+		hpa.Spec = autoscalingv2.HorizontalPodAutoscalerSpec{
+			MinReplicas: &k.values.Autoscaling.MinReplicas,
+			MaxReplicas: k.values.Autoscaling.MaxReplicas,
+			ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: appsv1.SchemeGroupVersion.String(),
+				Kind:       "Deployment",
+				Name:       deployment.Name,
+			},
+			Metrics: []autoscalingv2.MetricSpec{
+				{
+					Type: autoscalingv2.ResourceMetricSourceType,
+					Resource: &autoscalingv2.ResourceMetricSource{
+						Name: corev1.ResourceCPU,
+						Target: autoscalingv2.MetricTarget{
+							Type:         autoscalingv2.AverageValueMetricType,
+							AverageValue: &hpaTargetAverageValueCPU,
+						},
+					},
+				},
+				{
+					Type: autoscalingv2.ResourceMetricSourceType,
+					Resource: &autoscalingv2.ResourceMetricSource{
+						Name: corev1.ResourceMemory,
+						Target: autoscalingv2.MetricTarget{
+							Type:         autoscalingv2.AverageValueMetricType,
+							AverageValue: &hpaTargetAverageValueMemory,
+						},
+					},
+				},
+			},
+		}
+
+		return nil
+	})
 	return err
 }

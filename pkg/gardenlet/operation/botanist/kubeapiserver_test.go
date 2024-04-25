@@ -192,9 +192,12 @@ var _ = Describe("KubeAPIServer", func() {
 					Expect(kubeAPIServer.GetValues().Autoscaling).To(Equal(expectedConfig))
 				},
 
-				Entry("default behaviour, HVPA is disabled",
+				Entry("default behaviour, HVPA is disabled, VPAAndHPAForAPIServer is disabled",
 					nil,
-					map[featuregate.Feature]bool{features.HVPA: false},
+					map[featuregate.Feature]bool{
+						features.HVPA:                  false,
+						features.VPAAndHPAForAPIServer: false,
+					},
 					apiserver.AutoscalingConfig{
 						Mode:                      apiserver.AutoscalingModeBaseline,
 						APIServerResources:        resourcesRequirementsForKubeAPIServer(4),
@@ -204,13 +207,34 @@ var _ = Describe("KubeAPIServer", func() {
 						ScaleDownDisabledForHvpa:  false,
 					},
 				),
-				Entry("default behaviour, HVPA is enabled",
+				Entry("default behaviour, HVPA is enabled, VPAAndHPAForAPIServer is disabled",
 					nil,
 					map[featuregate.Feature]bool{
-						features.HVPA: true,
+						features.HVPA:                  true,
+						features.VPAAndHPAForAPIServer: false,
 					},
 					apiserver.AutoscalingConfig{
 						Mode: apiserver.AutoscalingModeHVPA,
+						APIServerResources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("500m"),
+								corev1.ResourceMemory: resource.MustParse("1Gi"),
+							},
+						},
+						MinReplicas:               1,
+						MaxReplicas:               3,
+						UseMemoryMetricForHvpaHPA: false,
+						ScaleDownDisabledForHvpa:  false,
+					},
+				),
+				Entry("default behaviour, HVPA is enabled, VPAAndHPAForAPIServer is enabled",
+					nil,
+					map[featuregate.Feature]bool{
+						features.HVPA:                  true,
+						features.VPAAndHPAForAPIServer: true,
+					},
+					apiserver.AutoscalingConfig{
+						Mode: apiserver.AutoscalingModeVPAAndHPA,
 						APIServerResources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("500m"),

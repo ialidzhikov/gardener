@@ -162,6 +162,11 @@ func (b *Botanist) computeKubeAPIServerAutoscalingConfig() apiserver.Autoscaling
 }
 
 func (b *Botanist) autoscalingMode() apiserver.AutoscalingMode {
+	// The VPAAndHPAForAPIServer feature gate takes precedence over the HVPA feature gate.
+	if features.DefaultFeatureGate.Enabled(features.VPAAndHPAForAPIServer) {
+		return apiserver.AutoscalingModeVPAAndHPA
+	}
+
 	var hvpaEnabled bool
 	if b.ManagedSeed != nil {
 		hvpaEnabled = features.DefaultFeatureGate.Enabled(features.HVPAForShootedSeed)
