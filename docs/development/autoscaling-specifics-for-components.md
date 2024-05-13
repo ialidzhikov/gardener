@@ -27,9 +27,9 @@ However, there are two supported autoscaling modes for the Garden or Shoot clust
 
 For both of the autoscaling modes downscaling is handled more pessimistically to prevent many subsequent etcd restarts. Thus, for `production` and `infrastructure` Shoot clusters (or all Garden clusters), downscaling is deactivated for the main etcd. For all other Shoot clusters, lower advertised requests/limits are only applied during the Shoot's maintenance time window.
 
-## Shoot Kubernetes API Server Autoscaling
+## Shoot Kubernetes API Server
 
-There are three supported autoscaling modes for the Shoot Kubernetes API Server.
+There are three supported autoscaling modes for the Shoot Kubernetes API server.
 
 - `Baseline`
 
@@ -51,6 +51,7 @@ There are three supported autoscaling modes for the Shoot Kubernetes API Server.
    In `HVPA` mode, the Shoot Kubernetes API server is scaled by the [hvpa-controller](https://github.com/gardener/hvpa-controller). The gardenlet is creating an `HVPA` resource for the API server. The `HVPA` resource is backed by HPA and VPA both in recommend-only mode. The hvpa-controller is responsible for enabling simultaneous horizontal and vertical scaling by incorporating the recommendations from the HPA and VPA.
 
    The initial API server resource requests are `500m` and `1Gi`.
+   HVPA's HPA is scaling only on CPU (average utilization 80%). HVPA's VPA max allowed values are `8` CPU and `25G`.
 
    The `HVPA` mode is the used autoscaling mode when the `HVPA` feature gate is enabled (and the `VPAAndHPAForAPIServer` feature gate is disabled).
 
@@ -61,9 +62,23 @@ There are three supported autoscaling modes for the Shoot Kubernetes API Server.
    The `VPAAndHPA` mode is introduced to address disadvantages with HVPA: additional component; modifies the deployment triggering unnecessary rollouts; vertical scaling only at max replicas; stuck vertical resource requests when scaling in again; etc.
 
    The initial API server resource requests are `250m` and `500Mi`.
+   VPA's max allowed values are `7` CPU and `28G`. HPA's average target usage values are `6` CPU and `24G`.
 
    The `VPAAndHPA` mode is the used autoscaling mode when the `VPAAndHPAForAPIServer` feature gate is enabled (takes precedence over the `HVPA` feature gate).
 
 The API server's replica count in all scaling modes varies between 2 and 3. The min replicas count of 2 is imposed by the [High Availability of Shoot Control Plane Components](../development/high-availability.md#control-plane-components).
 
 The gardenlet sets the initial API server resource requests only when the Deployment is not found. When the Deployment exists, it is not overwriting the kube-apiserver container resources.
+
+##  Virtual Kubernetes API Server and Gardener API Server
+
+The virtual Kubernetes API server's autoscaling is same as the Shoot Kubernetes API server's with the following differences:
+- The initial API server resource requests are `600m` and `512Mi` in all autoscaling modes.
+- The min replicas count is 2 for a non-HA virtual cluster and 3 for an HA virtual cluster. The max replicas count is 6.
+- In `HVPA` mode, HVPA's HPA is scaling on both CPU and memory (average utilization 80% for both).
+
+The Gardener API server's autoscaling is the same as the Shoot Kubernetes API server's with the following differences:
+- The initial API server resource requests are `600m` and `512Mi` in all autoscaling modes.
+- The min replicas count is 2. The max replicas count is 4.
+- In `HVPA` mode, HVPA's HPA is scaling on both CPU and memory (average utilization 80% for both).
+- In `HVPA` mode, HVPA's VPA max allowed values are `4` CPU and `25G`.
