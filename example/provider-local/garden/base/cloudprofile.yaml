@@ -18,9 +18,9 @@ spec:
   # These values do not represent the actual machine capacity. The actual
   # capacity of the machine depends on your docker resource allocation. 
   machineTypes:
-  - cpu: "1"
+  - cpu: "8"
     gpu: "0"
-    memory: 8Gi
+    memory: 14Gi
     name: local
   machineImages:
   - name: local

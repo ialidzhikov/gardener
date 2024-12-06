@@ -141,7 +141,15 @@ func (w *workerDelegate) generateMachineConfig(ctx context.Context) error {
 				Name:      w.worker.Spec.SecretRef.Name,
 				Namespace: w.worker.Spec.SecretRef.Namespace,
 			},
-			Provider:     local.Type,
+			Provider: local.Type,
+			NodeTemplate: &machinev1alpha1.NodeTemplate{
+				Capacity:     pool.NodeTemplate.Capacity,
+				InstanceType: pool.MachineType,
+				Region:       w.worker.Spec.Region,
+				// machine-controller-manager does not allow a zone to be empty,
+				// provider-local is not zone-aware
+				Zone: "0",
+			},
 			ProviderSpec: runtime.RawExtension{Raw: providerConfigBytes},
 		})
 

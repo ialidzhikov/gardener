@@ -14,6 +14,7 @@ import (
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/codes"
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/status"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -117,6 +118,16 @@ func (d *localDriver) applyPod(
 						Name:      "modules",
 						MountPath: "/lib/modules",
 						ReadOnly:  true,
+					},
+				},
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    req.MachineClass.NodeTemplate.Capacity[corev1.ResourceCPU],
+						corev1.ResourceMemory: req.MachineClass.NodeTemplate.Capacity[corev1.ResourceMemory],
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("100Mi"),
 					},
 				},
 				ReadinessProbe: &corev1.Probe{

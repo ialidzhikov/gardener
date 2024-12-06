@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/coreos/go-systemd/v22/unit"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	vpaautoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
@@ -72,6 +73,20 @@ func (e *ensurer) EnsureKubeletConfiguration(_ context.Context, _ extensionscont
 	}
 
 	return nil
+}
+
+func (e *ensurer) EnsureKubeletServiceUnitOptions(_ context.Context, _ extensionscontextwebhook.GardenContext, _ *semver.Version, newObj, _ []*unit.UnitOption) ([]*unit.UnitOption, error) {
+	if opt := webhook.UnitOptionWithSectionAndName(newObj, "Service", "ExecStart"); opt != nil {
+		command := webhook.DeserializeCommandLine(opt.Value)
+		command = ensureKubeletCommandLineArgs(command)
+		opt.Value = webhook.SerializeCommandLine(command, 1, " \\\n    ")
+	}
+
+	return newObj, nil
+}
+
+func ensureKubeletCommandLineArgs(command []string) []string {
+	return webhook.EnsureStringWithPrefix(command, "--cloud-provider=", "external")
 }
 
 func (e *ensurer) EnsureAdditionalProvisionFiles(_ context.Context, _ extensionscontextwebhook.GardenContext, new, _ *[]extensionsv1alpha1.File) error {
