@@ -55,14 +55,17 @@ linters-settings:
     no-printf-like: true
   misspell:
     mode: restricted # only check comments
-  revive:
-    rules:
-    - name: duplicated-imports
-    - name: unused-parameter
-    - name: unreachable-code
-    - name: context-as-argument
-    - name: early-return
-    - name: exported
+  #revive:
+  #  rules:
+  #  - name: duplicated-imports # not enabled by default
+  #  - name: unused-parameter   # enabled by default
+  #  - name: unreachable-code   # enabled by default
+  #  - name: context-as-argument # enabled by default
+  #  - name: early-return        # not enabled by default
+  #  - name: exported            # enabled by default
+  stylecheck:
+    # Enable check for duplicate imports: https://staticcheck.dev/docs/checks#ST1019
+    checks: ["ST1019"]
   importas:
     alias:
       # External imported packages

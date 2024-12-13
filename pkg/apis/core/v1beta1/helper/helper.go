@@ -1617,7 +1617,7 @@ func sumQuantities(left, right *resource.Quantity) *resource.Quantity {
 		return left
 	}
 
-	copy := left.DeepCopy()
-	copy.Add(*right)
-	return &copy
+	sum := left.DeepCopy()
+	sum.Add(*right)
+	return &sum
 }

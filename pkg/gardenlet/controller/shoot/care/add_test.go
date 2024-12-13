@@ -61,8 +61,8 @@ var _ = Describe("Add", func() {
 		})
 
 		It("should enqueue the object for Create events according to the calculated duration", func() {
-			DeferCleanup(test.WithVar(&RandomDurationWithMetaDuration, func(max *metav1.Duration) time.Duration {
-				return max.Duration
+			DeferCleanup(test.WithVar(&RandomDurationWithMetaDuration, func(maximum *metav1.Duration) time.Duration {
+				return maximum.Duration
 			}))
 			queue.EXPECT().AddAfter(req, reconciler.Config.Controllers.ShootCare.SyncPeriod.Duration)
 

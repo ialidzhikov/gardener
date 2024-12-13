@@ -59,9 +59,9 @@ var _ = Describe("Registration", func() {
 				configs.MutatingWebhookConfig = &admissionregistrationv1.MutatingWebhookConfiguration{}
 				configs.ValidatingWebhookConfig = &admissionregistrationv1.ValidatingWebhookConfiguration{}
 
-				copy := configs.DeepCopy()
-				Expect(copy.MutatingWebhookConfig).To(Not(ShareSameReferenceAs(configs.MutatingWebhookConfig)))
-				Expect(copy.ValidatingWebhookConfig).To(Not(ShareSameReferenceAs(configs.ValidatingWebhookConfig)))
+				configsCopy := configs.DeepCopy()
+				Expect(configsCopy.MutatingWebhookConfig).To(Not(ShareSameReferenceAs(configs.MutatingWebhookConfig)))
+				Expect(configsCopy.ValidatingWebhookConfig).To(Not(ShareSameReferenceAs(configs.ValidatingWebhookConfig)))
 			})
 		})
 
