@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/go-logr/logr"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -150,6 +151,7 @@ type Values struct {
 	StorageClassName            *string
 	DefragmentationSchedule     *string
 	CARotationPhase             gardencorev1beta1.CredentialsRotationPhase
+	RuntimeKubernetesVersion    *semver.Version
 	BackupConfig                *BackupConfig
 	MaintenanceTimeWindow       gardencorev1beta1.MaintenanceTimeWindow
 	EvictionRequirement         *string
@@ -247,7 +249,7 @@ func (e *etcd) Deploy(ctx context.Context) error {
 	}
 
 	clientService := &corev1.Service{}
-	gardenerutils.ReconcileTopologyAwareRoutingMetadata(clientService, e.values.TopologyAwareRoutingEnabled)
+	gardenerutils.ReconcileTopologyAwareRoutingSettings(clientService, e.values.TopologyAwareRoutingEnabled, e.values.RuntimeKubernetesVersion)
 
 	ports := []networkingv1.NetworkPolicyPort{
 		{Port: ptr.To(intstr.FromInt32(etcdconstants.PortEtcdClient)), Protocol: ptr.To(corev1.ProtocolTCP)},
@@ -324,8 +326,9 @@ func (e *etcd) Deploy(ctx context.Context) error {
 			DefragmentationSchedule: e.computeDefragmentationSchedule(existingEtcd),
 			Quota:                   ptr.To(resource.MustParse("8Gi")),
 			ClientService: &druidv1alpha1.ClientService{
-				Annotations: clientService.Annotations,
-				Labels:      clientService.Labels,
+				Annotations:         clientService.Annotations,
+				Labels:              clientService.Labels,
+				TrafficDistribution: clientService.Spec.TrafficDistribution,
 			},
 		}
 

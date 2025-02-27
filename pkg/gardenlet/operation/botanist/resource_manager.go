@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Masterminds/semver/v3"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	"github.com/gardener/gardener/pkg/component/gardener/resourcemanager"
@@ -23,6 +24,11 @@ import (
 
 // DefaultResourceManager returns an instance of Gardener Resource Manager with defaults configured for being deployed in a Shoot namespace
 func (b *Botanist) DefaultResourceManager() (resourcemanager.Interface, error) {
+	seedVersion, err := semver.NewVersion(b.SeedClientSet.Version())
+	if err != nil {
+		return nil, err
+	}
+
 	var defaultNotReadyTolerationSeconds, defaultUnreachableTolerationSeconds *int64
 	if b.Config != nil && b.Config.NodeToleration != nil {
 		nodeToleration := b.Config.NodeToleration
@@ -42,6 +48,7 @@ func (b *Botanist) DefaultResourceManager() (resourcemanager.Interface, error) {
 		NodeAgentAuthorizerEnabled:          true,
 		PodTopologySpreadConstraintsEnabled: true,
 		PriorityClassName:                   v1beta1constants.PriorityClassNameShootControlPlane400,
+		RuntimeKubernetesVersion:            seedVersion,
 		SchedulingProfile:                   v1beta1helper.ShootSchedulingProfile(b.Shoot.GetInfo()),
 		SecretNameServerCA:                  v1beta1constants.SecretNameCACluster,
 		SystemComponentTolerations:          gardenerutils.ExtractSystemComponentsTolerations(b.Shoot.GetInfo().Spec.Provider.Workers),

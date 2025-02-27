@@ -2009,7 +2009,7 @@ var _ = Describe("VPA", func() {
 			})
 
 			Context("when TopologyAwareRoutingEnabled=true", func() {
-				It("should successfully deploy with expected vpa-webhook service annotations and labels", func() {
+				It("should successfully deploy with expected vpa-webhook service annotations, labels and spec field", func() {
 					valuesAdmissionController.TopologyAwareRoutingEnabled = true
 					vpa = New(c, namespace, sm, Values{
 						ClusterType:              component.ClusterTypeShoot,
