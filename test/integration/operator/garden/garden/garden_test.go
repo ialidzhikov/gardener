@@ -60,6 +60,7 @@ import (
 	secretsutils "github.com/gardener/gardener/pkg/utils/secrets"
 	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
+	"github.com/gardener/gardener/test/utils/managedresource"
 	"github.com/gardener/gardener/test/utils/namespacefinalizer"
 	"github.com/gardener/gardener/test/utils/operationannotation"
 )
@@ -155,6 +156,7 @@ var _ = Describe("Garden controller tests", func() {
 		Expect((&operationannotation.Reconciler{ForObject: func() client.Object { return &extensionsv1alpha1.Extension{} }}).AddToManager(mgr)).To(Succeed())
 
 		Expect((&namespacefinalizer.Reconciler{}).AddToManager(mgr)).To(Succeed())
+		Expect((&managedresource.Reconciler{}).AddToManager(mgr)).To(Succeed())
 
 		By("Register controller")
 		extensionType = "test-extension"
@@ -558,15 +560,15 @@ spec:
 
 		// The garden controller waits for the Istio ManagedResources to be healthy, but Istio is not really running in
 		// this test, so let's fake this here.
-		By("Patch Istio ManagedResources to report healthiness")
-		for _, name := range []string{"istio-system", "virtual-garden-istio"} {
-			Eventually(makeManagedResourceHealthy(name, "istio-system")).Should(Succeed())
-		}
+		// By("Patch Istio ManagedResources to report healthiness")
+		// for _, name := range []string{"istio-system", "virtual-garden-istio"} {
+		// 	Eventually(makeManagedResourceHealthy(name, "istio-system")).Should(Succeed())
+		// }
 
 		// The garden controller waits for the etcd-druid ManagedResources to be healthy, but it is not really running
 		// in this test, so let's fake this here.
-		By("Patch etcd-druid ManagedResources to report healthiness")
-		Eventually(makeManagedResourceHealthy("etcd-druid", testNamespace.Name)).Should(Succeed())
+		// By("Patch etcd-druid ManagedResources to report healthiness")
+		// Eventually(makeManagedResourceHealthy("etcd-druid", testNamespace.Name)).Should(Succeed())
 
 		By("Verify that the virtual garden control plane components have been deployed")
 		Eventually(func(g Gomega) []string {
@@ -710,8 +712,8 @@ spec:
 
 		// The garden controller waits for the shoot-core-gardener-resource-manager ManagedResource to be healthy, but virtual-garden-gardener-resource-manager is not really running in
 		// this test, so let's fake this here.
-		By("Patch shoot-core-gardener-resource-manager ManagedResource to report healthiness")
-		Eventually(makeManagedResourceHealthy("shoot-core-gardener-resource-manager", testNamespace.Name)).Should(Succeed())
+		// By("Patch shoot-core-gardener-resource-manager ManagedResource to report healthiness")
+		// Eventually(makeManagedResourceHealthy("shoot-core-gardener-resource-manager", testNamespace.Name)).Should(Succeed())
 
 		// The secret with the bootstrap certificate should be gone when virtual-garden-gardener-resource-manager was bootstrapped.
 		Eventually(func(g Gomega) []string {
@@ -763,29 +765,29 @@ spec:
 
 		// The garden controller waits for the shoot-core-gardeneraccess ManagedResource to be healthy, but virtual-garden-gardener-resource-manager is not really running in
 		// this test, so let's fake this here.
-		By("Patch shoot-core-gardeneraccess ManagedResource to report healthiness")
-		Eventually(func(g Gomega) {
-			mr := &resourcesv1alpha1.ManagedResource{ObjectMeta: metav1.ObjectMeta{Name: "shoot-core-gardeneraccess", Namespace: testNamespace.Name}}
-			g.Expect(testClient.Get(ctx, client.ObjectKeyFromObject(mr), mr)).To(Succeed())
+		// By("Patch shoot-core-gardeneraccess ManagedResource to report healthiness")
+		// Eventually(func(g Gomega) {
+		// 	mr := &resourcesv1alpha1.ManagedResource{ObjectMeta: metav1.ObjectMeta{Name: "shoot-core-gardeneraccess", Namespace: testNamespace.Name}}
+		// 	g.Expect(testClient.Get(ctx, client.ObjectKeyFromObject(mr), mr)).To(Succeed())
 
-			patch := client.MergeFrom(mr.DeepCopy())
-			mr.Status.ObservedGeneration = mr.Generation
-			mr.Status.Conditions = []gardencorev1beta1.Condition{
-				{
-					Type:               "ResourcesHealthy",
-					Status:             "True",
-					LastUpdateTime:     metav1.NewTime(time.Unix(0, 0)),
-					LastTransitionTime: metav1.NewTime(time.Unix(0, 0)),
-				},
-				{
-					Type:               "ResourcesApplied",
-					Status:             "True",
-					LastUpdateTime:     metav1.NewTime(time.Unix(0, 0)),
-					LastTransitionTime: metav1.NewTime(time.Unix(0, 0)),
-				},
-			}
-			g.Expect(testClient.Status().Patch(ctx, mr, patch)).To(Succeed())
-		}).Should(Succeed())
+		// 	patch := client.MergeFrom(mr.DeepCopy())
+		// 	mr.Status.ObservedGeneration = mr.Generation
+		// 	mr.Status.Conditions = []gardencorev1beta1.Condition{
+		// 		{
+		// 			Type:               "ResourcesHealthy",
+		// 			Status:             "True",
+		// 			LastUpdateTime:     metav1.NewTime(time.Unix(0, 0)),
+		// 			LastTransitionTime: metav1.NewTime(time.Unix(0, 0)),
+		// 		},
+		// 		{
+		// 			Type:               "ResourcesApplied",
+		// 			Status:             "True",
+		// 			LastUpdateTime:     metav1.NewTime(time.Unix(0, 0)),
+		// 			LastTransitionTime: metav1.NewTime(time.Unix(0, 0)),
+		// 		},
+		// 	}
+		// 	g.Expect(testClient.Status().Patch(ctx, mr, patch)).To(Succeed())
+		// }).Should(Succeed())
 
 		By("Ensure virtual-garden-kube-controller-manager was deployed")
 		Eventually(func(g Gomega) []string {
@@ -861,9 +863,9 @@ spec:
 
 			// The garden controller waits for the Gardener-related ManagedResources to be healthy, but no
 			// gardener-resource-manager is running in this test, so let's fake this here.
-			By("Patch gardener-" + name + "-related ManagedResources to report healthiness")
-			Eventually(makeManagedResourceHealthy("gardener-"+name+"-runtime", testNamespace.Name)).Should(Succeed(), "for gardener-"+name)
-			Eventually(makeManagedResourceHealthy("gardener-"+name+"-virtual", testNamespace.Name)).Should(Succeed(), "for gardener-"+name)
+			// By("Patch gardener-" + name + "-related ManagedResources to report healthiness")
+			// Eventually(makeManagedResourceHealthy("gardener-"+name+"-runtime", testNamespace.Name)).Should(Succeed(), "for gardener-"+name)
+			// Eventually(makeManagedResourceHealthy("gardener-"+name+"-virtual", testNamespace.Name)).Should(Succeed(), "for gardener-"+name)
 		}
 
 		By("Verify that the ManagedResources related to other components have been deployed")
