@@ -473,6 +473,8 @@ func validateExtensions(extensions []core.Extension, fldPath *field.Path) field.
 		} else {
 			types.Insert(extension.Type)
 		}
+
+		allErrs = append(allErrs, validateResources(extension.Resources, fldPath.Index(i).Child("resources"))...)
 	}
 	return allErrs
 }
