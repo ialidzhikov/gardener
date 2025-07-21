@@ -69,6 +69,9 @@ type Extension struct {
 	// Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
 	// +optional
 	Disabled *bool `json:"disabled,omitempty" protobuf:"varint,3,opt,name=disabled"`
+	// Resources is a list of named resource references, which can be used by name in extension configuration.
+	// +optional
+	Resources []NamedResourceReference `json:"resources,omitempty" protobuf:"bytes,4,rep,name=resources"`
 }
 
 // NamedResourceReference is a named reference to a resource.

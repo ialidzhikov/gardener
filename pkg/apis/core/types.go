@@ -73,6 +73,8 @@ type Extension struct {
 	ProviderConfig *runtime.RawExtension
 	// Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
 	Disabled *bool
+	// Resources is a list of named resource references, which can be used by name in extension configuration.
+	Resources []NamedResourceReference
 }
 
 // NamedResourceReference is a named reference to a resource.

@@ -1077,6 +1077,9 @@ message Extension {
   // Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
   // +optional
   optional bool disabled = 3;
+
+  // Resources is a list of named resource references, which can be used by name in extension configuration.
+  repeated NamedResourceReference resources = 4;
 }
 
 // ExtensionResourceState contains the kind of the extension custom resource and its last observed state in the Shoot's
