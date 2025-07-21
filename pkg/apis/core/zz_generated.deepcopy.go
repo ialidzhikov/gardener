@@ -2029,6 +2029,11 @@ func (in *Extension) DeepCopyInto(out *Extension) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = make([]NamedResourceReference, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

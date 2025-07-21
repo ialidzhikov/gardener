@@ -3709,6 +3709,7 @@ func autoConvert_v1beta1_Extension_To_core_Extension(in *Extension, out *core.Ex
 	out.Type = in.Type
 	out.ProviderConfig = (*runtime.RawExtension)(unsafe.Pointer(in.ProviderConfig))
 	out.Disabled = (*bool)(unsafe.Pointer(in.Disabled))
+	out.Resources = *(*[]core.NamedResourceReference)(unsafe.Pointer(&in.Resources))
 	return nil
 }
 
@@ -3721,6 +3722,7 @@ func autoConvert_core_Extension_To_v1beta1_Extension(in *core.Extension, out *Ex
 	out.Type = in.Type
 	out.ProviderConfig = (*runtime.RawExtension)(unsafe.Pointer(in.ProviderConfig))
 	out.Disabled = (*bool)(unsafe.Pointer(in.Disabled))
+	out.Resources = *(*[]NamedResourceReference)(unsafe.Pointer(&in.Resources))
 	return nil
 }
 

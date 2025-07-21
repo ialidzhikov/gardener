@@ -3943,12 +3943,26 @@ func schema_pkg_apis_core_v1beta1_Extension(ref common.ReferenceCallback) common
 							Format:      "",
 						},
 					},
+					"resources": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Resources is a list of named resource references, which can be used by name in extension configuration.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.NamedResourceReference"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"type"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
+			"github.com/gardener/gardener/pkg/apis/core/v1beta1.NamedResourceReference", "k8s.io/apimachinery/pkg/runtime.RawExtension"},
 	}
 }
 
