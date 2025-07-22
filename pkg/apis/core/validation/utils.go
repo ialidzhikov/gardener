@@ -462,16 +462,37 @@ func validateMachineTypeStorage(storage core.MachineTypeStorage, fldPath *field.
 	return allErrs
 }
 
-func validateExtensions(extensions []core.Extension, fldPath *field.Path) field.ErrorList {
+func validateExtensions(extensions []core.Extension, resources []core.NamedResourceReference, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	types := sets.Set[string]{}
 	for i, extension := range extensions {
+		extensionFldPath := fldPath.Index(i)
+
 		if extension.Type == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("type"), "field must not be empty"))
+			allErrs = append(allErrs, field.Required(extensionFldPath.Child("type"), "field must not be empty"))
 		} else if types.Has(extension.Type) {
-			allErrs = append(allErrs, field.Duplicate(fldPath.Index(i).Child("type"), extension.Type))
+			allErrs = append(allErrs, field.Duplicate(extensionFldPath.Child("type"), extension.Type))
 		} else {
 			types.Insert(extension.Type)
+		}
+
+		resourceMountNames := sets.Set[string]{}
+		for j, resourceMount := range extension.ResourceMounts {
+			resourceMountFldPath := extensionFldPath.Child("resourceMounts").Index(j)
+
+			if resourceMount.Name == "" {
+				allErrs = append(allErrs, field.Required(resourceMountFldPath.Child("name"), "field must not be empty"))
+			} else if resourceMountNames.Has(resourceMount.Name) {
+				allErrs = append(allErrs, field.Duplicate(resourceMountFldPath.Child("name"), resourceMount.Name))
+			} else {
+				resourceMountNames.Insert(resourceMount.Name)
+			}
+
+			if !slices.ContainsFunc(resources, func(resource core.NamedResourceReference) bool {
+				return resource.Name == resourceMount.Name
+			}) {
+				allErrs = append(allErrs, field.Invalid(resourceMountFldPath.Child("name"), resourceMount.Name, "resource mount name "+resourceMount.Name+" does not exist in .spec.resources[]"))
+			}
 		}
 	}
 	return allErrs
