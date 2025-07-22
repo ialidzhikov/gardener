@@ -72,7 +72,7 @@ func (h *Handler) Handle(ctx context.Context, req admission.Request) admission.R
 func (h *Handler) admitShoot(ctx context.Context, request admission.Request) admission.Response {
 	shoot := &gardencore.Shoot{}
 	if err := runtime.DecodeInto(gardenCoreDecoder, request.Object.Raw, shoot); err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
+		return admission.Errored(http.StatusUnprocessableEntity, err)
 	}
 
 	if shoot.DeletionTimestamp != nil {
