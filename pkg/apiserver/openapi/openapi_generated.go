@@ -171,6 +171,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.QuotaSpec":                                  schema_pkg_apis_core_v1beta1_QuotaSpec(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.Region":                                     schema_pkg_apis_core_v1beta1_Region(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceData":                               schema_pkg_apis_core_v1beta1_ResourceData(ref),
+		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceMount":                              schema_pkg_apis_core_v1beta1_ResourceMount(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceWatchCacheSize":                     schema_pkg_apis_core_v1beta1_ResourceWatchCacheSize(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SSHAccess":                                  schema_pkg_apis_core_v1beta1_SSHAccess(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SecretBinding":                              schema_pkg_apis_core_v1beta1_SecretBinding(ref),
@@ -3943,12 +3944,26 @@ func schema_pkg_apis_core_v1beta1_Extension(ref common.ReferenceCallback) common
 							Format:      "",
 						},
 					},
+					"resourceMounts": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ResourceMounts are the resource references which are in-use by the extension.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceMount"),
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"type"},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
+			"github.com/gardener/gardener/pkg/apis/core/v1beta1.ResourceMount", "k8s.io/apimachinery/pkg/runtime.RawExtension"},
 	}
 }
 
@@ -7567,6 +7582,28 @@ func schema_pkg_apis_core_v1beta1_ResourceData(ref common.ReferenceCallback) com
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_ResourceMount(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ResourceMount represents a resource reference which is in-use  by an extension.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the resource reference name.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
 	}
 }
 

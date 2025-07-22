@@ -5746,6 +5746,20 @@ bool
 <p>Disabled allows to disable extensions that were marked as &lsquo;automatically enabled&rsquo; by Gardener administrators.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>resourceMounts</code></br>
+<em>
+<a href="#core.gardener.cloud/v1beta1.ResourceMount">
+[]ResourceMount
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ResourceMounts are the resource references which are in-use by the extension.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="core.gardener.cloud/v1beta1.ExtensionResourceState">ExtensionResourceState
@@ -10604,6 +10618,36 @@ k8s.io/apimachinery/pkg/runtime.RawExtension
 </td>
 <td>
 <p>Data of the resource</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="core.gardener.cloud/v1beta1.ResourceMount">ResourceMount
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#core.gardener.cloud/v1beta1.Extension">Extension</a>)
+</p>
+<p>
+<p>ResourceMount represents a resource reference which is in-use  by an extension.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name is the resource reference name.</p>
 </td>
 </tr>
 </tbody>
