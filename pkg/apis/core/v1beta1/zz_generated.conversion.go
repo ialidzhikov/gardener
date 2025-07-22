@@ -5018,6 +5018,7 @@ func Convert_core_Monitoring_To_v1beta1_Monitoring(in *core.Monitoring, out *Mon
 func autoConvert_v1beta1_NamedResourceReference_To_core_NamedResourceReference(in *NamedResourceReference, out *core.NamedResourceReference, s conversion.Scope) error {
 	out.Name = in.Name
 	out.ResourceRef = in.ResourceRef
+	out.ExtensionType = (*string)(unsafe.Pointer(in.ExtensionType))
 	return nil
 }
 
@@ -5029,6 +5030,7 @@ func Convert_v1beta1_NamedResourceReference_To_core_NamedResourceReference(in *N
 func autoConvert_core_NamedResourceReference_To_v1beta1_NamedResourceReference(in *core.NamedResourceReference, out *NamedResourceReference, s conversion.Scope) error {
 	out.Name = in.Name
 	out.ResourceRef = in.ResourceRef
+	out.ExtensionType = (*string)(unsafe.Pointer(in.ExtensionType))
 	return nil
 }
 

@@ -9094,6 +9094,18 @@ Kubernetes autoscaling/v1.CrossVersionObjectReference
 <p>ResourceRef is a reference to a resource.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>extensionType</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ExtensionType is the type of the extension where the resource reference is used on.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="core.gardener.cloud/v1beta1.NamespacedCloudProfileSpec">NamespacedCloudProfileSpec

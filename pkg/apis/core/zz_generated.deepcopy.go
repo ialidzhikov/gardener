@@ -2063,7 +2063,9 @@ func (in *ExtensionResourceState) DeepCopyInto(out *ExtensionResourceState) {
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = make([]NamedResourceReference, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }
@@ -3519,6 +3521,11 @@ func (in *Monitoring) DeepCopy() *Monitoring {
 func (in *NamedResourceReference) DeepCopyInto(out *NamedResourceReference) {
 	*out = *in
 	out.ResourceRef = in.ResourceRef
+	if in.ExtensionType != nil {
+		in, out := &in.ExtensionType, &out.ExtensionType
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
@@ -5054,7 +5061,9 @@ func (in *SeedSpec) DeepCopyInto(out *SeedSpec) {
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = make([]NamedResourceReference, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }
@@ -5595,7 +5604,9 @@ func (in *ShootSpec) DeepCopyInto(out *ShootSpec) {
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = make([]NamedResourceReference, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations

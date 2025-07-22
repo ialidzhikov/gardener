@@ -1007,7 +1007,9 @@ func (in *DefaultStatus) DeepCopyInto(out *DefaultStatus) {
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = make([]v1beta1.NamedResourceReference, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }

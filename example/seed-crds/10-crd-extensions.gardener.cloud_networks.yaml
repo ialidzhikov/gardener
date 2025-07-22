@@ -226,6 +226,10 @@ spec:
                 items:
                   description: NamedResourceReference is a named reference to a resource.
                   properties:
+                    extensionType:
+                      description: ExtensionType is the type of the extension where
+                        the resource reference is used on.
+                      type: string
                     name:
                       description: Name of the resource reference.
                       type: string

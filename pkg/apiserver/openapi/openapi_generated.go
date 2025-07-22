@@ -6125,6 +6125,13 @@ func schema_pkg_apis_core_v1beta1_NamedResourceReference(ref common.ReferenceCal
 							Ref:         ref("k8s.io/api/autoscaling/v1.CrossVersionObjectReference"),
 						},
 					},
+					"extensionType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ExtensionType is the type of the extension where the resource reference is used on.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"name", "resourceRef"},
 			},
