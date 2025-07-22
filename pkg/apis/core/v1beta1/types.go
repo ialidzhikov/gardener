@@ -79,5 +79,5 @@ type NamedResourceReference struct {
 	ResourceRef autoscalingv1.CrossVersionObjectReference `json:"resourceRef" protobuf:"bytes,2,opt,name=resourceRef"`
 	// ExtensionType is the type of the extension where the resource reference is used on.
 	// +optional
-	ExtensionType *string `json:"extensionType"`
+	ExtensionType *string `json:"extensionType" protobuf:"bytes,3,opt,name=extensionType"`
 }

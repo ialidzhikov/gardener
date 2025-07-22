@@ -2067,6 +2067,10 @@ message NamedResourceReference {
 
   // ResourceRef is a reference to a resource.
   optional .k8s.io.api.autoscaling.v1.CrossVersionObjectReference resourceRef = 2;
+
+  // ExtensionType is the type of the extension where the resource reference is used on.
+  // +optional
+  optional string extensionType = 3;
 }
 
 // NamespacedCloudProfile represents certain properties about a provider environment.
