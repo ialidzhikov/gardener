@@ -77,4 +77,7 @@ type NamedResourceReference struct {
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// ResourceRef is a reference to a resource.
 	ResourceRef autoscalingv1.CrossVersionObjectReference `json:"resourceRef" protobuf:"bytes,2,opt,name=resourceRef"`
+	// ExtensionType is the type of the extension where the resource reference is used on.
+	// +optional
+	ExtensionType *string `json:"extensionType"`
 }

@@ -81,4 +81,6 @@ type NamedResourceReference struct {
 	Name string
 	// ResourceRef is a reference to a resource.
 	ResourceRef autoscalingv1.CrossVersionObjectReference
+	// ExtensionType is the type of the extension where the resource reference is used on.
+	ExtensionType *string
 }
