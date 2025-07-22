@@ -69,6 +69,9 @@ type Extension struct {
 	// Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
 	// +optional
 	Disabled *bool `json:"disabled,omitempty" protobuf:"varint,3,opt,name=disabled"`
+	// ResourceMounts are the resource references which are in-use by the extension.
+	// +optional
+	ResourceMounts []ResourceMount `json:"resourceMounts,omitempty"`
 }
 
 // NamedResourceReference is a named reference to a resource.
@@ -77,4 +80,10 @@ type NamedResourceReference struct {
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// ResourceRef is a reference to a resource.
 	ResourceRef autoscalingv1.CrossVersionObjectReference `json:"resourceRef" protobuf:"bytes,2,opt,name=resourceRef"`
+}
+
+// ResourceMount represents a resource reference which is in-use  by an extension.
+type ResourceMount struct {
+	// Name is the resource reference name.
+	Name string `json:"name"`
 }

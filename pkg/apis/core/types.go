@@ -73,6 +73,8 @@ type Extension struct {
 	ProviderConfig *runtime.RawExtension
 	// Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
 	Disabled *bool
+	// ResourceMounts are the resource references which are in-use by the extension.
+	ResourceMounts []ResourceMount
 }
 
 // NamedResourceReference is a named reference to a resource.
@@ -81,4 +83,10 @@ type NamedResourceReference struct {
 	Name string
 	// ResourceRef is a reference to a resource.
 	ResourceRef autoscalingv1.CrossVersionObjectReference
+}
+
+// ResourceMount represents a resource reference which is in-use  by an extension.
+type ResourceMount struct {
+	// Name is the resource reference name.
+	Name string
 }
