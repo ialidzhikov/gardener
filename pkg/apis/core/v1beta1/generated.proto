@@ -1077,6 +1077,10 @@ message Extension {
   // Disabled allows to disable extensions that were marked as 'automatically enabled' by Gardener administrators.
   // +optional
   optional bool disabled = 3;
+
+  // ResourceMounts are the resource references which are in-use by the extension.
+  // +optional
+  repeated ResourceMount resourceMounts = 4;
 }
 
 // ExtensionResourceState contains the kind of the extension custom resource and its last observed state in the Shoot's
@@ -2566,6 +2570,12 @@ message ResourceData {
 
   // Data of the resource
   optional .k8s.io.apimachinery.pkg.runtime.RawExtension data = 2;
+}
+
+// ResourceMount represents a resource reference which is in-use  by an extension.
+message ResourceMount {
+  // Name is the resource reference name.
+  optional string name = 1;
 }
 
 // ResourceWatchCacheSize contains configuration of the API server's watch cache size for one specific resource.

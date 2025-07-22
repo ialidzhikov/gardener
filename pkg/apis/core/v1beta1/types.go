@@ -71,7 +71,7 @@ type Extension struct {
 	Disabled *bool `json:"disabled,omitempty" protobuf:"varint,3,opt,name=disabled"`
 	// ResourceMounts are the resource references which are in-use by the extension.
 	// +optional
-	ResourceMounts []ResourceMount `json:"resourceMounts,omitempty"`
+	ResourceMounts []ResourceMount `json:"resourceMounts,omitempty" protobuf:"bytes,4,rep,name=resourceMounts"`
 }
 
 // NamedResourceReference is a named reference to a resource.
@@ -85,5 +85,5 @@ type NamedResourceReference struct {
 // ResourceMount represents a resource reference which is in-use  by an extension.
 type ResourceMount struct {
 	// Name is the resource reference name.
-	Name string `json:"name"`
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 }
