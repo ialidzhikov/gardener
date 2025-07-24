@@ -10,6 +10,7 @@ import (
 
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	. "github.com/gardener/gardener/test/e2e/gardener/shoot/internal/observability"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 )
 
 var (

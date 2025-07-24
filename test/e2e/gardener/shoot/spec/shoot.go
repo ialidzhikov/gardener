@@ -44,7 +44,7 @@ import (
 // in an Eventually statement to implement retries for making e2e less susceptible for intermittent failures.
 
 var (
-	templatesDir      = filepath.Join("..", "..", "framework", "resources", "templates")
+	templatesDir      = filepath.Join("..", "..", "..", "framework", "resources", "templates")
 	projectNamespace  string
 	existingShootName string
 )

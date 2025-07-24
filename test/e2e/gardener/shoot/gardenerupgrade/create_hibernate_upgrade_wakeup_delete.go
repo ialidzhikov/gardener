@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	. "github.com/gardener/gardener/test/e2e/gardener"
-	. "github.com/gardener/gardener/test/e2e/gardener/shoot"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 )
 
 var _ = Describe("Gardener Upgrade Tests", func() {

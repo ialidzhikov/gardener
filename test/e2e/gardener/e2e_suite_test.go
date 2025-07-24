@@ -19,13 +19,13 @@ import (
 	_ "github.com/gardener/gardener/test/e2e/gardener/managedseed"
 	_ "github.com/gardener/gardener/test/e2e/gardener/project"
 	_ "github.com/gardener/gardener/test/e2e/gardener/seed"
-	"github.com/gardener/gardener/test/e2e/gardener/shoot"
 	_ "github.com/gardener/gardener/test/e2e/gardener/shoot/gardenerupgrade"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 )
 
 func TestMain(m *testing.M) {
 	logf.SetLogger(logger.MustNewZapLogger(logger.InfoLevel, logger.FormatJSON, zap.WriteTo(GinkgoWriter)))
-	shoot.RegisterShootFlags()
+	RegisterShootFlags()
 	flag.Parse()
 	os.Exit(m.Run())
 }

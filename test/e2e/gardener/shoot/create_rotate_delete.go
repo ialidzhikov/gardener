@@ -31,6 +31,7 @@ import (
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/inclusterclient"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/rotation"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	"github.com/gardener/gardener/test/utils/access"
 	rotationutils "github.com/gardener/gardener/test/utils/rotation"
 	"github.com/gardener/gardener/test/utils/shoots/update/inplace"

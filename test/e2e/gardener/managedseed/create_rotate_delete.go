@@ -25,7 +25,7 @@ import (
 	. "github.com/gardener/gardener/test/e2e"
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	. "github.com/gardener/gardener/test/e2e/gardener/seed"
-	. "github.com/gardener/gardener/test/e2e/gardener/shoot"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	"github.com/gardener/gardener/test/utils/rotation"
 )
 

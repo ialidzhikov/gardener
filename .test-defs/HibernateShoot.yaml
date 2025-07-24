@@ -11,10 +11,10 @@ spec:
   command: [bash, -c]
   args:
   - >-
+    KUBECONFIG=$TM_KUBECONFIG_PATH/gardener.config
     go test -timeout=0 ./test/testmachinery/system/shoot_hibernation
     --v -ginkgo.v -ginkgo.show-node-events -ginkgo.no-color
-    --shoot-name=$SHOOT_NAME
+    --existing-shoot-name=$SHOOT_NAME
     --project-namespace=$PROJECT_NAMESPACE
-    --kubecfg="$TM_KUBECONFIG_PATH/gardener.config"
 
   image: golang:1.24.5

@@ -5,30 +5,26 @@
 package shoothibernation_test
 
 import (
-	"context"
-	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 
-	"github.com/gardener/gardener/test/framework"
+	"github.com/gardener/gardener/test/e2e"
+	"github.com/gardener/gardener/test/e2e/gardener"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 )
 
 func init() {
-	framework.RegisterShootFrameworkFlags()
+	RegisterShootFlags()
 }
 
-var _ = Describe("Shoot hibernation testing", func() {
-	f := framework.NewShootFramework(&framework.ShootConfig{
-		SkipSeedInitialization: true,
+var _ = Describe("Shoot hibernation testing", Ordered, func() {
+	var s *gardener.ShootContext
+	e2e.BeforeTestSetup(func() {
+		s = &gardener.ShootContext{
+			TestContext: *gardener.NewTestContext(),
+		}
 	})
 
-	framework.CIt("should hibernate shoot", func(ctx context.Context) {
-		hibernation := f.Shoot.Spec.Hibernation
-		if hibernation != nil && hibernation.Enabled != nil && *hibernation.Enabled {
-			Skip("shoot is already hibernated")
-		}
-
-		err := f.HibernateShoot(ctx)
-		framework.ExpectNoError(err)
-	}, 30*time.Minute)
+	ItShouldCreateShoot(s)
+	ItShouldHibernateShoot(s)
+	ItShouldWaitForShootToBeReconciledAndHealthy(s)
 })

@@ -17,6 +17,7 @@ import (
 	gardenerutils "github.com/gardener/gardener/pkg/utils/gardener"
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/inclusterclient"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	shootupdatesuite "github.com/gardener/gardener/test/utils/shoots/update"
 	"github.com/gardener/gardener/test/utils/shoots/update/inplace"
 )

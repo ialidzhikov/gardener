@@ -82,6 +82,7 @@ func NewShootFramework(cfg *ShootConfig) *ShootFramework {
 func (f *ShootFramework) BeforeEach(ctx context.Context) {
 	f.Config = mergeShootConfig(f.Config, shootCfg)
 	validateShootConfig(f.Config)
+	fmt.Println("f.AddShoot")
 	err := f.AddShoot(ctx, f.Config.ShootName, f.ProjectNamespace)
 	ExpectNoError(err)
 

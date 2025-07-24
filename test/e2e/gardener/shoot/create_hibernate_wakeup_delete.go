@@ -23,6 +23,7 @@ import (
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/inclusterclient"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/node"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 )
 
 var _ = Describe("Shoot Tests", Label("Shoot", "default"), func() {

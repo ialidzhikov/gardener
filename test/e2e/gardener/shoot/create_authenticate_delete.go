@@ -33,6 +33,7 @@ import (
 	"github.com/gardener/gardener/pkg/component/kubernetes/apiserverexposure"
 	"github.com/gardener/gardener/pkg/utils/retry"
 	. "github.com/gardener/gardener/test/e2e/gardener"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	"github.com/gardener/gardener/test/utils/access"
 )
 

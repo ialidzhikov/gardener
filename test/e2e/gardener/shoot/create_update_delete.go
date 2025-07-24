@@ -28,6 +28,7 @@ import (
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/bastion"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/inclusterclient"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/zerodowntimevalidator"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	"github.com/gardener/gardener/test/utils/access"
 	shootupdatesuite "github.com/gardener/gardener/test/utils/shoots/update"
 )

@@ -17,6 +17,7 @@ import (
 	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	. "github.com/gardener/gardener/test/e2e/gardener"
 	"github.com/gardener/gardener/test/e2e/gardener/shoot/internal/inclusterclient"
+	. "github.com/gardener/gardener/test/e2e/gardener/shoot/spec"
 	shootmigration "github.com/gardener/gardener/test/utils/shoots/migration"
 )
 
