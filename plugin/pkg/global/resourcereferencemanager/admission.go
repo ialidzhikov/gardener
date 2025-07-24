@@ -1369,36 +1369,11 @@ func (r *ReferenceManager) ensureResourceReferences(ctx context.Context, attribu
 			}
 		}
 
+		// TODO: Handle ConfigMap
 		if err := r.sanityCheckReferencedSecretResource(ctx, namespace, resource.ResourceRef.Name, extensionTypes.UnsortedList()); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func (r *ReferenceManager) sanityCheckReferencedSecretResource(ctx context.Context, namespace, name string, extensionTypes []string) error {
-	secret, err := r.kubeClient.CoreV1().Secrets(namespace).Get(ctx, name, kubernetesclient.DefaultGetOptions())
-	if err != nil {
-		return err
-	}
-
-	for _, extensionType := range extensionTypes {
-		dummySecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: name,
-				Namespace:    namespace,
-				Annotations:  secret.Annotations,
-				Labels:       utils.MergeStringMaps(secret.Labels, map[string]string{v1beta1constants.LabelExtensionExtensionTypePrefix + extensionType: "true"}),
-			},
-			Type: secret.Type,
-			Data: secret.Data,
-		}
-
-		if _, err := r.kubeClient.CoreV1().Secrets(dummySecret.Namespace).Create(ctx, dummySecret, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}}); err != nil {
-			return fmt.Errorf("%s referenced resource secret sanity check failed: %w", extensionType, err)
-		}
-	}
-
 	return nil
 }
 
@@ -1422,6 +1397,32 @@ func (r *ReferenceManager) sanityCheckProviderSecret(ctx context.Context, namesp
 
 		if _, err := r.kubeClient.CoreV1().Secrets(dummySecret.Namespace).Create(ctx, dummySecret, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}}); err != nil {
 			return fmt.Errorf("%s provider secret sanity check failed: %w", providerType, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *ReferenceManager) sanityCheckReferencedSecretResource(ctx context.Context, namespace, name string, extensionTypes []string) error {
+	secret, err := r.kubeClient.CoreV1().Secrets(namespace).Get(ctx, name, kubernetesclient.DefaultGetOptions())
+	if err != nil {
+		return err
+	}
+
+	for _, extensionType := range extensionTypes {
+		dummySecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: name,
+				Namespace:    namespace,
+				Annotations:  secret.Annotations,
+				Labels:       utils.MergeStringMaps(secret.Labels, map[string]string{v1beta1constants.LabelExtensionExtensionTypePrefix + extensionType: "true"}),
+			},
+			Type: secret.Type,
+			Data: secret.Data,
+		}
+
+		if _, err := r.kubeClient.CoreV1().Secrets(dummySecret.Namespace).Create(ctx, dummySecret, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}}); err != nil {
+			return fmt.Errorf("%s referenced resource secret sanity check failed: %w", extensionType, err)
 		}
 	}
 
