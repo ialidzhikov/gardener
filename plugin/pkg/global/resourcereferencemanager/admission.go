@@ -935,7 +935,7 @@ func (r *ReferenceManager) ensureShootReferences(ctx context.Context, attributes
 		}
 	}
 
-	if err := r.ensureResourceReferences(ctx, attributes, shoot.Namespace, oldShoot.Spec.Resources, shoot.Spec.Resources); err != nil {
+	if err := r.ensureResourceReferences(ctx, attributes, shoot.Namespace, oldShoot.Spec.Resources, shoot.Spec.Resources, shoot.Spec.Extensions); err != nil {
 		return err
 	}
 
@@ -1021,7 +1021,7 @@ func (r *ReferenceManager) ensureShootReferences(ctx context.Context, attributes
 }
 
 func (r *ReferenceManager) ensureSeedReferences(ctx context.Context, attributes admission.Attributes, oldSeed, seed *core.Seed) error {
-	return r.ensureResourceReferences(ctx, attributes, v1beta1constants.GardenNamespace, oldSeed.Spec.Resources, seed.Spec.Resources)
+	return r.ensureResourceReferences(ctx, attributes, v1beta1constants.GardenNamespace, oldSeed.Spec.Resources, seed.Spec.Resources, seed.Spec.Extensions)
 }
 
 func (r *ReferenceManager) ensureBackupEntryReferences(oldBackupEntry, backupEntry *core.BackupEntry) error {
@@ -1312,7 +1312,7 @@ func validateShootWorkerLimits(channel chan error, shoot *gardencorev1beta1.Shoo
 	}
 }
 
-func (r *ReferenceManager) ensureResourceReferences(ctx context.Context, attributes admission.Attributes, namespace string, oldResources, resources []core.NamedResourceReference) error {
+func (r *ReferenceManager) ensureResourceReferences(ctx context.Context, attributes admission.Attributes, namespace string, oldResources, resources []core.NamedResourceReference, extensions []core.Extension) error {
 	if apiequality.Semantic.DeepEqual(oldResources, resources) {
 		return nil
 	}
@@ -1359,7 +1359,46 @@ func (r *ReferenceManager) ensureResourceReferences(ctx context.Context, attribu
 		if err := r.lookupResource(ctx, gv.WithResource(apiResource.Name), namespace, resource.ResourceRef.Name); err != nil {
 			return fmt.Errorf("failed to resolve resource reference %q: %w", resource.Name, err)
 		}
+
+		extensionTypes := sets.New[string]()
+		for _, extension := range extensions {
+			for _, resourceMount := range extension.ResourceMounts {
+				if resourceMount.Name == resource.Name {
+					extensionTypes.Insert(extension.Type)
+				}
+			}
+		}
+
+		if err := r.sanityCheckReferencedSecretResource(ctx, namespace, resource.ResourceRef.Name, extensionTypes.UnsortedList()); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func (r *ReferenceManager) sanityCheckReferencedSecretResource(ctx context.Context, namespace, name string, extensionTypes []string) error {
+	secret, err := r.kubeClient.CoreV1().Secrets(namespace).Get(ctx, name, kubernetesclient.DefaultGetOptions())
+	if err != nil {
+		return err
+	}
+
+	for _, extensionType := range extensionTypes {
+		dummySecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: name,
+				Namespace:    namespace,
+				Annotations:  secret.Annotations,
+				Labels:       utils.MergeStringMaps(secret.Labels, map[string]string{v1beta1constants.LabelExtensionExtensionTypePrefix + extensionType: "true"}),
+			},
+			Type: secret.Type,
+			Data: secret.Data,
+		}
+
+		if _, err := r.kubeClient.CoreV1().Secrets(dummySecret.Namespace).Create(ctx, dummySecret, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}}); err != nil {
+			return fmt.Errorf("%s referenced resource secret sanity check failed: %w", extensionType, err)
+		}
+	}
+
 	return nil
 }
 
