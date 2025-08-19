@@ -21,7 +21,7 @@ import (
 )
 
 var _ = Describe("finalizerremoval", func() {
-	Describe("#Admit", func() {
+	Describe("#Validate", func() {
 		var (
 			ctx                       context.Context
 			admissionHandler          *FinalizerRemoval
@@ -72,19 +72,19 @@ var _ = Describe("finalizerremoval", func() {
 				}
 			})
 
-			It("should admit the removal because object is not used by any shoot", func() {
+			It("should allow the removal because object is not used by any shoot", func() {
 				attrs := admission.NewAttributesRecord(&core.SecretBinding{}, coreSecretBinding, core.Kind("SecretBinding").WithVersion("version"), "", coreSecretBinding.Name, core.Resource("SecretBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).NotTo(HaveOccurred())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should admit the removal because finalizer is irrelevant", func() {
+			It("should allow the removal because finalizer is irrelevant", func() {
 				newSecretBinding := coreSecretBinding.DeepCopy()
 				coreSecretBinding.Finalizers = append(coreSecretBinding.Finalizers, "irrelevant-finalizer")
 
 				attrs := admission.NewAttributesRecord(newSecretBinding, coreSecretBinding, core.Kind("SecretBinding").WithVersion("version"), "", coreSecretBinding.Name, core.Resource("SecretBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).NotTo(HaveOccurred())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).NotTo(HaveOccurred())
 			})
 
 			It("should reject the removal because object is not used by any shoot", func() {
@@ -100,7 +100,7 @@ var _ = Describe("finalizerremoval", func() {
 
 				attrs := admission.NewAttributesRecord(newSecretBinding, coreSecretBinding, core.Kind("SecretBinding").WithVersion("version"), "", coreSecretBinding.Name, core.Resource("SecretBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(MatchError(ContainSubstring("finalizer must not be removed")))
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(MatchError(ContainSubstring("finalizer must not be removed")))
 			})
 		})
 
@@ -117,19 +117,19 @@ var _ = Describe("finalizerremoval", func() {
 				}
 			})
 
-			It("should admit the removal because object is not used by any shoot", func() {
+			It("should allow the removal because object is not used by any shoot", func() {
 				attrs := admission.NewAttributesRecord(&security.CredentialsBinding{}, coreCredentialsBinding, security.Kind("CredentialsBinding").WithVersion("version"), "", coreCredentialsBinding.Name, security.Resource("CredentialsBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).NotTo(HaveOccurred())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should admit the removal because finalizer is irrelevant", func() {
+			It("should allow the removal because finalizer is irrelevant", func() {
 				newCredentialsBinding := coreCredentialsBinding.DeepCopy()
 				coreCredentialsBinding.Finalizers = append(coreCredentialsBinding.Finalizers, "irrelevant-finalizer")
 
 				attrs := admission.NewAttributesRecord(newCredentialsBinding, coreCredentialsBinding, security.Kind("CredentialsBinding").WithVersion("version"), "", coreCredentialsBinding.Name, security.Resource("CredentialsBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).NotTo(HaveOccurred())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).NotTo(HaveOccurred())
 			})
 
 			It("should reject the removal because object is not used by any shoot", func() {
@@ -145,7 +145,7 @@ var _ = Describe("finalizerremoval", func() {
 
 				attrs := admission.NewAttributesRecord(newCredentialsBinding, coreCredentialsBinding, security.Kind("CredentialsBinding").WithVersion("version"), "", coreCredentialsBinding.Name, security.Resource("CredentialsBinding").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(MatchError(ContainSubstring("finalizer must not be removed")))
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(MatchError(ContainSubstring("finalizer must not be removed")))
 			})
 		})
 
@@ -174,16 +174,16 @@ var _ = Describe("finalizerremoval", func() {
 
 				attrs := admission.NewAttributesRecord(newShoot, coreShoot, security.Kind("Shoot").WithVersion("version"), "", coreShoot.Name, security.Resource("Shoot").WithVersion("version"), "", admission.Delete, &metav1.DeleteOptions{}, false, nil)
 
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(Succeed())
 			})
 
-			It("should admit the removal if the shoot deletion succeeded ", func() {
+			It("should allow the removal if the shoot deletion succeeded ", func() {
 				newShoot := coreShoot.DeepCopy()
 				newShoot.Finalizers = nil
 				newShoot.Status.LastOperation.Type = core.LastOperationTypeDelete
 
 				attrs := admission.NewAttributesRecord(newShoot, coreShoot, core.Kind("Shoot").WithVersion("version"), coreShoot.Namespace, coreShoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, nil)
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(Succeed())
 			})
 
 			It("should reject the removal if the shoot has not yet been deleted successfully", func() {
@@ -191,25 +191,25 @@ var _ = Describe("finalizerremoval", func() {
 				newShoot.Finalizers = nil
 
 				attrs := admission.NewAttributesRecord(newShoot, coreShoot, core.Kind("Shoot").WithVersion("version"), coreShoot.Namespace, coreShoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, nil)
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(MatchError(ContainSubstring("shoot deletion has not completed successfully yet")))
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(MatchError(ContainSubstring("shoot deletion has not completed successfully yet")))
 			})
 
-			It("should admit the removal if the shoot has not yet a last operation", func() {
+			It("should allow the removal if the shoot has not yet a last operation", func() {
 				newShoot := coreShoot.DeepCopy()
 				newShoot.Finalizers = nil
 				newShoot.Status.LastOperation = nil
 
 				attrs := admission.NewAttributesRecord(newShoot, coreShoot, core.Kind("Shoot").WithVersion("version"), coreShoot.Namespace, coreShoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, nil)
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(Succeed())
 			})
 
-			It("should admit the removal if the shoot has not yet a technical id", func() {
+			It("should allow the removal if the shoot has not yet a technical id", func() {
 				newShoot := coreShoot.DeepCopy()
 				newShoot.Finalizers = nil
 				newShoot.Status.TechnicalID = ""
 
 				attrs := admission.NewAttributesRecord(newShoot, coreShoot, core.Kind("Shoot").WithVersion("version"), coreShoot.Namespace, coreShoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, nil)
-				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
+				Expect(admissionHandler.Validate(ctx, attrs, nil)).To(Succeed())
 			})
 		})
 	})
