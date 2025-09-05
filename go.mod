@@ -79,6 +79,7 @@ require (
 	k8s.io/kube-proxy v0.33.4
 	k8s.io/kube-state-metrics/v2 v2.13.0
 	k8s.io/kubelet v0.33.4
+	k8s.io/kubernetes v0.0.0-00010101000000-000000000000
 	k8s.io/metrics v0.33.4
 	k8s.io/pod-security-admission v0.33.4
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
@@ -282,3 +283,5 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
+
+replace k8s.io/kubernetes => ./third_party/kubernetes

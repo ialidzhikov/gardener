@@ -7,11 +7,12 @@ package pkg
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
-	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
-	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
+	mutatingadmissionpolicy "k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
+	validatingadmissionpolicy "k8s.io/apiserver/pkg/admission/plugin/policy/validating"
 	"k8s.io/apiserver/pkg/admission/plugin/resourcequota"
 	mutatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/mutating"
 	validatingwebhook "k8s.io/apiserver/pkg/admission/plugin/webhook/validating"
+	"k8s.io/kubernetes/apiserver/pkg/admission/plugin/gc"
 )
 
 const (
@@ -102,14 +103,15 @@ func AllPluginNames() []string {
 		PluginNameManagedSeedShoot,                  // ManagedSeedShoot
 		PluginNameBastion,                           // Bastion
 		PluginNameBackupBucketValidator,             // BackupBucketValidator
+		gc.PluginName,                               // OwnerReferencesPermissionEnforcement
 
 		// new admission plugins should generally be inserted above here
 		// webhook, and resourcequota plugins must go at the end
 
-		mutating.PluginName,          // MutatingAdmissionPolicy
-		mutatingwebhook.PluginName,   // MutatingAdmissionWebhook
-		validating.PluginName,        // ValidatingAdmissionPolicy
-		validatingwebhook.PluginName, // ValidatingAdmissionWebhook
+		mutatingadmissionpolicy.PluginName,   // MutatingAdmissionPolicy
+		mutatingwebhook.PluginName,           // MutatingAdmissionWebhook
+		validatingadmissionpolicy.PluginName, // ValidatingAdmissionPolicy
+		validatingwebhook.PluginName,         // ValidatingAdmissionWebhook
 
 		// This plugin must remain the last one in the list since it updates the quota usage
 		// which can only happen reliably if previous plugins permitted the request.
