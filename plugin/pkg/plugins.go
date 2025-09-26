@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/admission/plugin/gc"
 	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
@@ -75,6 +76,7 @@ const (
 func AllPluginNames() []string {
 	return []string{
 		lifecycle.PluginName,                        // NamespaceLifecycle
+		gc.PluginName,                               // OwnerReferencesPermissionEnforcement
 		PluginNameResourceReferenceManager,          // ResourceReferenceManager
 		PluginNameExtensionValidator,                // ExtensionValidator
 		PluginNameExtensionLabels,                   // ExtensionLabels

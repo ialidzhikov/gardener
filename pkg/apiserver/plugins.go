@@ -6,6 +6,7 @@ package apiserver
 
 import (
 	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/admission/plugin/gc"
 	"k8s.io/apiserver/pkg/admission/plugin/resourcequota"
 
 	backupbucketvalidator "github.com/gardener/gardener/plugin/pkg/backupbucket/validator"
@@ -39,6 +40,7 @@ import (
 
 // RegisterAllAdmissionPlugins registers all admission plugins.
 func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
+	gc.Register(plugins)
 	resourcereferencemanager.Register(plugins)
 	deletionconfirmation.Register(plugins)
 	finalizerremoval.Register(plugins)
