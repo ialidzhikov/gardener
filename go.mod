@@ -284,3 +284,5 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
+
+replace k8s.io/apiserver => /Users/I331370/SAPDevelop/go/src/k8s.io/kubernetes/staging/src/k8s.io/apiserver
