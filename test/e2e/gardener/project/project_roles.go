@@ -78,6 +78,8 @@ var _ = Describe("Project Tests", Ordered, Label("Project", "default"), func() {
 			UserName: testUserName,
 		}
 
+		Expect(false).To(BeTrue())
+
 		Eventually(ctx, func(g Gomega) {
 			var err error
 			testUserClient, err = client.New(testUserConfig, client.Options{})
