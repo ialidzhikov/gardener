@@ -20,7 +20,6 @@ import (
 	"github.com/gardener/gardener/pkg/utils"
 	gardenerutils "github.com/gardener/gardener/pkg/utils/gardener"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/gardener/gardener/test/e2e"
 	. "github.com/gardener/gardener/test/e2e/gardener"
 )
 
@@ -34,7 +33,7 @@ var _ = Describe("Project Tests", Ordered, Label("Project", "default"), func() {
 		extensionClusterRole *rbacv1.ClusterRole
 	)
 
-	BeforeTestSetup(func() {
+	BeforeAll(func(ctx SpecContext) {
 		projectName := "test-" + utils.ComputeSHA256Hex([]byte(CurrentSpecReport().LeafNodeLocation.String()))[:5]
 
 		project := &gardencorev1beta1.Project{
@@ -47,9 +46,7 @@ var _ = Describe("Project Tests", Ordered, Label("Project", "default"), func() {
 		}
 
 		s = NewTestContext().ForProject(project)
-	})
 
-	BeforeAll(func() {
 		DeferCleanup(func(ctx SpecContext) {
 			Eventually(func(g Gomega) {
 				if testEndpoint != nil {
@@ -66,7 +63,10 @@ var _ = Describe("Project Tests", Ordered, Label("Project", "default"), func() {
 		}, NodeTimeout(time.Minute))
 	})
 
-	ItShouldCreateProject(s)
+	It("Create Project", func(ctx SpecContext) {
+		CreateProject(ctx, s)
+	}, SpecTimeout(time.Minute))
+
 	ItShouldWaitForProjectToBeReconciledAndReady(s)
 
 	It("Initialize test user", func(ctx SpecContext) {

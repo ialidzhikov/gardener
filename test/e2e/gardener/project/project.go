@@ -18,18 +18,16 @@ import (
 )
 
 // ItShouldCreateProject creates the project
-func ItShouldCreateProject(s *ProjectContext) {
+func CreateProject(ctx SpecContext, s *ProjectContext) {
 	GinkgoHelper()
 
-	It("Create Project", func(ctx SpecContext) {
-		Eventually(ctx, func() error {
-			if err := s.GardenClient.Create(ctx, s.Project); !apierrors.IsAlreadyExists(err) {
-				return err
-			}
+	Eventually(ctx, func() error {
+		if err := s.GardenClient.Create(ctx, s.Project); !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 
-			return StopTrying("project already exists")
-		}).Should(Succeed())
-	}, SpecTimeout(time.Minute))
+		return StopTrying("project already exists")
+	}).Should(Succeed())
 }
 
 // ItShouldDeleteProject deletes the project
