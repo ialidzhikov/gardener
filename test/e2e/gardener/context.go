@@ -63,6 +63,23 @@ func NewTestContext() *TestContext {
 		Log: logger.MustNewZapLogger(logger.DebugLevel, logger.FormatText, logzap.WriteTo(GinkgoWriter)),
 	}
 
+	t.InitClients()
+
+	return t
+}
+
+// ForShoot copies the receiver TestContext for deriving a ShootContext.
+func (t *TestContext) ForShoot(shoot *gardencorev1beta1.Shoot) *ShootContext {
+	s := &ShootContext{
+		TestContext: *t,
+		Shoot:       shoot,
+	}
+	s.Log = s.Log.WithValues("shoot", client.ObjectKeyFromObject(shoot))
+
+	return s
+}
+
+func (t *TestContext) InitClients() {
 	gardenScheme := kubernetes.GardenScheme
 	utilruntime.Must(operatorv1alpha1.AddToScheme(gardenScheme))
 	utilruntime.Must(resourcesv1alpha1.AddToScheme(gardenScheme))
@@ -81,19 +98,6 @@ func NewTestContext() *TestContext {
 	t.GardenClientSet = gardenClientSet
 	t.GardenClient = gardenClientSet.Client()
 	t.GardenKomega = komega.New(t.GardenClient)
-
-	return t
-}
-
-// ForShoot copies the receiver TestContext for deriving a ShootContext.
-func (t *TestContext) ForShoot(shoot *gardencorev1beta1.Shoot) *ShootContext {
-	s := &ShootContext{
-		TestContext: *t,
-		Shoot:       shoot,
-	}
-	s.Log = s.Log.WithValues("shoot", client.ObjectKeyFromObject(shoot))
-
-	return s
 }
 
 // ShootContext is a test case-specific TestContext that carries test state and helpers through multiple steps of the
@@ -151,6 +155,11 @@ type ProjectContext struct {
 	TestContext
 
 	Project *gardencorev1beta1.Project
+}
+
+func (t *ProjectContext) SetProject(project *gardencorev1beta1.Project) *ProjectContext {
+	t.Project = project
+	return t
 }
 
 // ForProject copies the receiver TestContext for deriving a ProjectContext.
