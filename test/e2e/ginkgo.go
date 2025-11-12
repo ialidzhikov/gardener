@@ -23,6 +23,9 @@ package e2e
 // The only alternative is implementing an initialization method on the `TestContext`. However, sharing the context
 // variable in multiple containers (i.e., test cases) would require zeroing the context before the initialization, which
 // is easy to forget and might lead to surprises.
+//
+// Deprecated: The function is deprecated because it is not a native ginkgo container.
+// Instead, use ginkgo's BeforeAll function. For more details, see https://github.com/gardener/gardener/issues/13134.
 func BeforeTestSetup(f func()) {
 	f()
 }
