@@ -69,7 +69,7 @@ var _ = Describe("Seed Tests", Label("Seed", "default"), func() {
 			v1beta1constants.GardenerOperation: v1beta1constants.GardenerOperationRenewKubeconfig,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Seed)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Seed)
 
 		It("Verify after gardenlet kubeconfig rotation", func(ctx SpecContext) {
 			verifier.After(ctx, false)

@@ -62,7 +62,7 @@ func testCredentialRotation(s *ShootContext, shootVerifiers, utilsverifiers rota
 			v1beta1constants.GardenerOperation: startRotationAnnotation,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Shoot)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Shoot)
 
 		It("Rotation should be in preparing status", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {
@@ -99,7 +99,7 @@ func testCredentialRotationComplete(s *ShootContext, shootVerifiers, utilsverifi
 			v1beta1constants.GardenerOperation: completeRotationAnnotation,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Shoot)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Shoot)
 
 		It("Rotation in completing status", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {
@@ -143,7 +143,7 @@ func testCredentialRotationWithoutWorkersRollout(s *ShootContext, shootVerifiers
 		v1beta1constants.GardenerOperation: v1beta1constants.OperationRotateCredentialsStartWithoutWorkersRollout,
 	})
 
-	ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Shoot)
+	ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Shoot)
 
 	It("Rotation in preparing without workers rollout status", func(ctx SpecContext) {
 		Eventually(ctx, func(g Gomega) {
@@ -271,7 +271,7 @@ func testManualWorkersRollout(s *ShootContext) {
 	ItShouldAnnotateShoot(s, map[string]string{
 		v1beta1constants.GardenerOperation: "rollout-workers=" + s.Shoot.Spec.Provider.Workers[0].Name,
 	})
-	ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Shoot)
+	ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Shoot)
 
 	It("Should fetch new MachineSet creation timestamp and ensure it's newer", func(ctx SpecContext) {
 		Eventually(ctx, func(g Gomega) {

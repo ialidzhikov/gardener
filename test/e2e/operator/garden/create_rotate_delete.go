@@ -185,7 +185,7 @@ var _ = Describe("Garden Tests", Label("Garden", "default"), func() {
 			v1beta1constants.GardenerOperation: v1beta1constants.OperationRotateCredentialsStart,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Garden)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Garden)
 
 		It("Rotation in Preparing status", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {
@@ -206,7 +206,7 @@ var _ = Describe("Garden Tests", Label("Garden", "default"), func() {
 			v1beta1constants.GardenerOperation: v1beta1constants.OperationRotateCredentialsComplete,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Garden)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Garden)
 
 		It("Rotation in Completing status", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {
@@ -344,7 +344,7 @@ var _ = Describe("Garden Tests", Label("Garden", "default"), func() {
 			v1beta1constants.GardenerOperation: v1beta1constants.OperationRotateETCDEncryptionKey,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Garden)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Garden)
 
 		It("Rotation in Preparing status", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {

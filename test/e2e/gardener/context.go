@@ -63,11 +63,16 @@ func NewTestContext() *TestContext {
 		Log: logger.MustNewZapLogger(logger.DebugLevel, logger.FormatText, logzap.WriteTo(GinkgoWriter)),
 	}
 
+	t.InitClients()
+
+	return t
+}
+
+func (t *TestContext) InitClients() {
 	gardenScheme := kubernetes.GardenScheme
 	utilruntime.Must(operatorv1alpha1.AddToScheme(gardenScheme))
 	utilruntime.Must(resourcesv1alpha1.AddToScheme(gardenScheme))
 	utilruntime.Must(apiextensionsscheme.AddToScheme(gardenScheme))
-
 	gardenClientSet, err := kubernetes.NewClientFromFile("", os.Getenv("KUBECONFIG"),
 		kubernetes.WithClientOptions(client.Options{Scheme: gardenScheme}),
 		kubernetes.WithClientConnectionOptions(componentbaseconfigv1alpha1.ClientConnectionConfiguration{QPS: 100, Burst: 130}),
@@ -77,12 +82,9 @@ func NewTestContext() *TestContext {
 	if err != nil {
 		panic(fmt.Errorf("failed to create garden client set: %w", err))
 	}
-
 	t.GardenClientSet = gardenClientSet
 	t.GardenClient = gardenClientSet.Client()
 	t.GardenKomega = komega.New(t.GardenClient)
-
-	return t
 }
 
 // ForShoot copies the receiver TestContext for deriving a ShootContext.
@@ -153,15 +155,11 @@ type ProjectContext struct {
 	Project *gardencorev1beta1.Project
 }
 
-// ForProject copies the receiver TestContext for deriving a ProjectContext.
-func (t *TestContext) ForProject(project *gardencorev1beta1.Project) *ProjectContext {
-	s := &ProjectContext{
-		TestContext: *t,
-		Project:     project,
-	}
-	s.Log = s.Log.WithValues("project", client.ObjectKeyFromObject(project))
+func (t *ProjectContext) SetProject(project *gardencorev1beta1.Project) *ProjectContext {
+	t.Project = project
+	t.Log = t.Log.WithValues("project", client.ObjectKeyFromObject(project))
 
-	return s
+	return t
 }
 
 // GardenContext is a test case-specific TestContext that carries test state and helpers through multiple steps of the
@@ -235,6 +233,13 @@ type SeedContext struct {
 	//    HaveField("Items", HaveLen(1)),
 	//  )
 	SeedKomega komega.Komega
+}
+
+func (t *SeedContext) SetSeed(seed *gardencorev1beta1.Seed) *SeedContext {
+	t.Seed = seed
+	t.Log = t.Log.WithValues("seed", client.ObjectKeyFromObject(seed))
+
+	return t
 }
 
 // ForSeed copies the receiver TestContext for deriving a SeedContext.

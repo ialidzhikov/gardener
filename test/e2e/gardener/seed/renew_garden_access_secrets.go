@@ -31,13 +31,16 @@ import (
 var _ = Describe("Seed Tests", Label("Seed", "default"), func() {
 	Describe("Garden Cluster Access For Seed Components", Ordered, func() {
 		var (
-			s                *SeedContext
+			s *SeedContext = &SeedContext{
+				TestContext: TestContext{},
+			}
+
 			seedNamespace    string
 			gardenAccessName string
 			accessSecret     *corev1.Secret
 		)
 
-		BeforeTestSetup(func() {
+		BeforeAll(func() {
 			testContext := NewTestContext()
 
 			// Find the first seed which is not "e2e-managedseed". Seed name differs between test scenarios, e.g., non-ha/ha.
@@ -58,8 +61,9 @@ var _ = Describe("Seed Tests", Label("Seed", "default"), func() {
 				Fail("failed to find applicable seed")
 			}
 
-			s = testContext.ForSeed(&seedList.Items[seedIndex])
-			ItShouldInitializeSeedClient(s)
+			seed := &seedList.Items[seedIndex]
+			s.SetSeed(seed)
+			s.InitClients()
 
 			seedNamespace = gardenerutils.ComputeGardenNamespace(s.Seed.Name)
 			gardenAccessName = "test-" + utils.ComputeSHA256Hex([]byte(uuid.NewUUID()))[:8]
@@ -77,6 +81,8 @@ var _ = Describe("Seed Tests", Label("Seed", "default"), func() {
 				},
 			}
 		})
+
+		ItShouldInitializeSeedClient(s)
 
 		It("Should create garden access secret", func(ctx SpecContext) {
 			Eventually(ctx, func() error {
@@ -164,7 +170,7 @@ var _ = Describe("Seed Tests", Label("Seed", "default"), func() {
 			v1beta1constants.GardenerOperation: v1beta1constants.SeedOperationRenewGardenAccessSecrets,
 		})
 
-		ItShouldEventuallyNotHaveOperationAnnotation(s.GardenKomega, s.Seed)
+		ItShouldEventuallyNotHaveOperationAnnotation(s.TestContext, s.Seed)
 
 		It("Should wait for token to be renewed in garden access secret", func(ctx SpecContext) {
 			Eventually(func(g Gomega) {
