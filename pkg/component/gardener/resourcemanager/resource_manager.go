@@ -860,7 +860,9 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 			TolerationSeconds: r.values.DefaultUnreachableToleration,
 		})
 	}
-
+	nodeSelector := map[string]string{
+		"worker.gardener.cloud/pool": "control-plane",
+	}
 	if r.values.BootstrapControlPlaneNode {
 		tolerations = append(tolerations,
 			corev1.Toleration{Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
@@ -903,6 +905,7 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 						Type: corev1.SeccompProfileTypeRuntimeDefault,
 					},
 				},
+				NodeSelector:       nodeSelector,
 				ServiceAccountName: r.values.NamePrefix + serviceAccountName,
 				HostNetwork:        r.values.BootstrapControlPlaneNode,
 				Containers: []corev1.Container{
