@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -106,6 +108,15 @@ func (b *GardenadmBotanist) staticControlPlaneComponents() []staticControlPlaneC
 					IP:        ip,
 					Hostnames: []string{resourcemanagerconstants.ServiceName},
 				})
+			}
+
+			for i := range pod.Spec.Containers {
+				container := pod.Spec.Containers[i]
+				if container.Name == "kube-apiserver" {
+					container.Args = slices.DeleteFunc(container.Args, func(s string) bool {
+						return strings.HasPrefix(s, "--encryption-provider-config")
+					})
+				}
 			}
 		}
 		mutateETCDPodFn = func(pod *corev1.Pod) {
