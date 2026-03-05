@@ -358,6 +358,10 @@ func newShootObject(
 		obj.ControlPlaneNamespace = resources.Shoot.Status.TechnicalID
 	}
 
+	if resources.ShootState != nil {
+		obj.SetShootState(resources.ShootState.DeepCopy())
+	}
+
 	return obj, nil
 }
 
@@ -410,7 +414,9 @@ func initializeShootResource(resources gardenadm.Resources, fs afero.Afero, runs
 					"you should either use `gardenadm bootstrap` to create the self-hosted shoot cluster with managed infrastructure or " +
 					"remove the `Shoot.spec.{secret,credentials}BindingName` field to mark the shoot as having unmanaged infrastructure")
 			}
+		}
 
+		if resources.ShootState != nil {
 			// Instruct the botanist and shoot package to read the ShootState and restore the state of extensions, secrets, etc.
 			shoot.Status.LastOperation = &gardencorev1beta1.LastOperation{
 				Type: gardencorev1beta1.LastOperationTypeRestore,

@@ -266,11 +266,13 @@ func (r *Reconciler) mustApproveGardenerNodeAgentCSR(ctx context.Context, csr *c
 	switch {
 	case strings.HasPrefix(csr.Spec.Username, bootstraptokenapi.BootstrapUserPrefix):
 		if nodeName != "" {
-			if err := r.TargetClient.Get(ctx, client.ObjectKey{Name: nodeName}, &corev1.Node{}); err == nil {
-				return fmt.Sprintf("Cannot use bootstrap token since gardener-node-agent for machine %q is already bootstrapped", machineName), csrDenied, nil
-			} else if !apierrors.IsNotFound(err) {
-				return "", csrNoOpinion, fmt.Errorf("error getting node object with name %q: %w", nodeName, err)
-			}
+			// TEMPORARY: Commented out for DR PoC - allows re-bootstrapping existing nodes.
+			// TODO(ialidzhikov): Find out how to remove this bypass before production use.
+			// if err := r.TargetClient.Get(ctx, client.ObjectKey{Name: nodeName}, &corev1.Node{}); err == nil {
+			// 	return fmt.Sprintf("Cannot use bootstrap token since gardener-node-agent for machine %q is already bootstrapped", machineName), csrDenied, nil
+			// } else if !apierrors.IsNotFound(err) {
+			// 	return "", csrNoOpinion, fmt.Errorf("error getting node object with name %q: %w", nodeName, err)
+			// }
 		}
 
 	case strings.HasPrefix(csr.Spec.Username, v1beta1constants.NodeAgentUserNamePrefix):

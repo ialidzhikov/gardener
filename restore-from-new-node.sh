@@ -66,6 +66,9 @@ export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
 rm -rf data
 copy_etcd_data
 
+# Get the ShootState
+kubectl -n gardenadm-unmanaged-infra cp machine-0:/tmp/shootstate.yaml /tmp/shootstate.yaml
+
 # Nuke the control plane machine
 kill "$PF_PID" 2>/dev/null || true
 kubectl -n gardenadm-unmanaged-infra delete pod machine-0 --force
@@ -74,6 +77,11 @@ sleep 3
 # Recover
 kubectl -n gardenadm-unmanaged-infra patch svc machine-0 --type='json' -p='[{"op":"replace","path":"/spec/selector/apps.kubernetes.io~1pod-index","value":"3"}]'
 
+# Copy the etcd data to the new Node
 kubectl -n gardenadm-unmanaged-infra exec -it machine-3 -- mkdir -p /var/lib/etcd-main
-
 kubectl cp data/ gardenadm-unmanaged-infra/machine-3:/var/lib/etcd-main/data
+
+# Copy the ShootState to the new Node
+kubectl cp /tmp/shootstate.yaml gardenadm-unmanaged-infra/machine-3:/gardenadm/resources/shootstate.yaml
+
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-3 -- gardenadm init -d /gardenadm/resources

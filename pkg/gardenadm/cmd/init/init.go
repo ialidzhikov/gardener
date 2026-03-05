@@ -12,9 +12,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	seedsystem "github.com/gardener/gardener/pkg/component/seed/system"
@@ -23,6 +28,7 @@ import (
 	"github.com/gardener/gardener/pkg/gardenadm/cmd"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	gardenerutils "github.com/gardener/gardener/pkg/utils/gardener"
+	"github.com/gardener/gardener/pkg/utils/gardener/shootstate"
 )
 
 // NewCommand creates a new cobra.Command.
@@ -410,6 +416,45 @@ func run(ctx context.Context, opts *Options) error {
 			Name:         "Deploying cluster-autoscaler",
 			Fn:           b.DeployClusterAutoscaler,
 			SkipIf:       !b.Shoot.HasManagedInfrastructure(),
+			Dependencies: flow.NewTaskIDs(waitUntilGardenerNodeAgentLeaseIsRenewed),
+		})
+		_ = g.Add(flow.Task{
+			Name: "Persisting ShootState",
+			Fn: func(ctx context.Context) error {
+				shoot := b.Shoot.GetInfo()
+				if err := shootstate.Deploy(ctx, clock.RealClock{}, b.GardenClient, b.SeedClientSet.Client(), b.Shoot.GetInfo(), b.Shoot.ControlPlaneNamespace, false); err != nil {
+					return fmt.Errorf("failed to deploy ShootState: %w", err)
+				}
+
+				shootState := &gardencorev1beta1.ShootState{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      shoot.Name,
+						Namespace: shoot.Namespace,
+					},
+				}
+				if err := b.GardenClient.Get(ctx, client.ObjectKeyFromObject(shootState), shootState); err != nil {
+					return fmt.Errorf("failed to get ShootState: %w", err)
+				}
+
+				shootState.TypeMeta = metav1.TypeMeta{
+					APIVersion: gardencorev1beta1.SchemeGroupVersion.String(),
+					Kind:       "ShootState",
+				}
+				shootState.Annotations = nil
+				shootState.ResourceVersion = ""
+
+				data, err := yaml.Marshal(shootState)
+				if err != nil {
+					return fmt.Errorf("failed to marshal ShootState: %w", err)
+				}
+				if err := b.FS.WriteFile("/tmp/shootstate.yaml", data, 0640); err != nil {
+					return fmt.Errorf("failed writing ShootState file %s: %w", "/tmp/shootstate.yaml", err)
+				}
+
+				fmt.Printf("ShootState - %+v\n", len(shootState.Spec.Gardener))
+
+				return nil
+			},
 			Dependencies: flow.NewTaskIDs(waitUntilGardenerNodeAgentLeaseIsRenewed),
 		})
 	)

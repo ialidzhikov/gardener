@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -26,7 +27,7 @@ func (b *GardenadmBotanist) MigrateSecrets(ctx context.Context, fakeClient, real
 
 	for _, secret := range secretList.Items {
 		taskFns = append(taskFns, func(ctx context.Context) error {
-			return realClient.Create(ctx, &corev1.Secret{
+			s := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        secret.Name,
 					Namespace:   secret.Namespace,
@@ -36,7 +37,17 @@ func (b *GardenadmBotanist) MigrateSecrets(ctx context.Context, fakeClient, real
 				Type:      secret.Type,
 				Immutable: secret.Immutable,
 				Data:      secret.Data,
-			})
+			}
+
+			if err := realClient.Create(ctx, s); err != nil {
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create a Secret: %w", err)
+				}
+
+				b.Logger.Info("The Secret already exists in the system. It is most likely restored from a ShootState. Won't update it...", "secret", client.ObjectKeyFromObject(s))
+			}
+
+			return nil
 		})
 	}
 
