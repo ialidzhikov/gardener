@@ -518,7 +518,6 @@ func bootstrapControlPlane(ctx context.Context, opts *Options) (*botanist.Garden
 	if err != nil {
 		return nil, err
 	}
-	b.StoreContainer = opts.StoreContainer
 
 	if opts.Zone != "" {
 		b.Zone = new(opts.Zone)
