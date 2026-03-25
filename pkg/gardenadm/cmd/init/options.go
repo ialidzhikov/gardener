@@ -36,9 +36,6 @@ type Options struct {
 	// If it has exactly one zone configured, that zone is automatically applied and the flag is optional.
 	// If it has no zones configured, this flag must not be set.
 	Zone string
-
-	// StoreContainer is the store container identifier for etcd backup/restore.
-	StoreContainer string
 }
 
 // ParseArgs parses the arguments to the options.

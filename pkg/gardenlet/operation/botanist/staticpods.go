@@ -53,13 +53,21 @@ func (b *Botanist) deployETCD(role string) func(context.Context) error {
 		}
 
 		var initialize *bootstrapetcd.InitializeConfig
+
 		if role == v1beta1constants.ETCDRoleMain {
-			if b.StoreContainer != "" {
+			if b.Resources.BackupBucket != nil && b.Resources.BackupEntry != nil {
+				storageProvider := string(b.Resources.BackupBucket.Spec.Type)
+				if len(storageProvider) > 0 {
+					storageProvider = strings.ToUpper(storageProvider[:1]) + storageProvider[1:]
+				}
+				storeContainer := b.Resources.BackupBucket.Name
+				storeEntry := b.Resources.BackupEntry.Name
+
 				initialize = &bootstrapetcd.InitializeConfig{
 					EtcdbrctlImage:        "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.40.0",
-					StorageProvider:       "Local",
-					StoreContainer:        b.StoreContainer,
-					StorePrefix:           fmt.Sprintf("kube-system--%s/etcd-main", b.StoreContainer),
+					StorageProvider:       storageProvider,
+					StoreContainer:        storeContainer,
+					StorePrefix:           fmt.Sprintf("%s/etcd-main", storeEntry),
 					BackupBucketsHostPath: "/etc/gardener/local-backupbuckets",
 				}
 			}
