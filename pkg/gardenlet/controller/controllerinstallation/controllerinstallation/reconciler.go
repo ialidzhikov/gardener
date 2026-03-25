@@ -617,6 +617,9 @@ func (r *Reconciler) MutateSpecForSelfHostedShootExtensions(obj runtime.Object) 
 			deployment.Spec.Replicas = ptr.To(int32(1))
 			deployment.Spec.Strategy.Type = appsv1.RecreateDeploymentStrategyType
 			deployment.Spec.Strategy.RollingUpdate = nil
+			deployment.Spec.Template.Spec.NodeSelector = map[string]string{
+				"worker.gardener.cloud/pool": "control-plane",
+			}
 		}
 	}
 

@@ -74,6 +74,10 @@ func run(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed bootstrapping control plane: %w", err)
 	}
 
+	if opts.BootstrapOnly {
+		return nil
+	}
+
 	dir := filepath.Dir(cmd.ConfigDirLocation)
 	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
 		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
