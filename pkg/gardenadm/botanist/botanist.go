@@ -65,9 +65,6 @@ type GardenadmBotanist struct {
 	// This field is only relevant for shoot with unmanaged infrastructure.
 	Zone *string
 
-	// StoreContainer is the store container identifier for etcd backup/restore.
-	StoreContainer string
-
 	operatingSystemConfigSecret       *corev1.Secret
 	gardenerResourceManagerServiceIPs []string
 	useEtcdManagedByDruid             bool
