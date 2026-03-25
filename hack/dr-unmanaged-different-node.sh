@@ -82,6 +82,12 @@ kubectl -n gardenadm-unmanaged-infra exec -it machine-2 -- $JOIN_COMMAND_2
 targetMachine machine-3
 ./hack/creating-workload.sh
 
+# Extract backup resources for bootstrap etcd restore and keep them locally.
+backupbucket_name=$(kubectl get backupbuckets.extensions.gardener.cloud -o jsonpath='{.items[0].metadata.name}')
+backupentry_name=$(kubectl get backupentries.extensions.gardener.cloud -o jsonpath='{.items[0].metadata.name}')
+kubectl get backupbuckets.extensions.gardener.cloud "${backupbucket_name}" -o yaml > dr-unmanaged-backupbucket.yaml
+kubectl get backupentries.extensions.gardener.cloud "${backupentry_name}" -o yaml > dr-unmanaged-backupentry.yaml
+
 # Wait for etcd snapshot to contain the workload data
 echo "Waiting for 6 minutes before copying data to have a backup with more data in it..."
 sleep 360
@@ -95,8 +101,9 @@ kubectl -n gardenadm-unmanaged-infra delete pod machine-3 --force
 sleep 3
 
 # First phase of recovery
-local_backupbucket=$(ls dev/local-backupbuckets)
-kubectl -n gardenadm-unmanaged-infra exec -it machine-3 -- gardenadm init -d /gardenadm/resources --bootstrap --store-container ${local_backupbucket}
+kubectl cp dr-unmanaged-backupbucket.yaml gardenadm-unmanaged-infra/machine-3:/gardenadm/resources/backupbucket.yaml
+kubectl cp dr-unmanaged-backupentry.yaml gardenadm-unmanaged-infra/machine-3:/gardenadm/resources/backupentry.yaml
+kubectl -n gardenadm-unmanaged-infra exec -it machine-3 -- gardenadm init -d /gardenadm/resources --bootstrap
 targetMachine machine-3
 ./hack/prep-cluster-2.sh machine-3
 
@@ -125,3 +132,5 @@ kubectl -n gardenadm-unmanaged-infra exec -it machine-0 --  gardenadm init -d /g
 rm -rf secrets.yaml
 rm -rf data
 rm -rf pod.yaml
+rm -f dr-unmanaged-backupbucket.yaml
+rm -f dr-unmanaged-backupentry.yaml

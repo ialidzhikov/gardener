@@ -22,6 +22,7 @@ import (
 
 	gardencorev1 "github.com/gardener/gardener/pkg/apis/core/v1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	operatorv1alpha1 "github.com/gardener/gardener/pkg/apis/operator/v1alpha1"
 	securityv1alpha1 "github.com/gardener/gardener/pkg/apis/security/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
@@ -35,11 +36,13 @@ func init() {
 	utilruntime.Must((&runtime.SchemeBuilder{
 		kubernetes.AddGardenSchemeToScheme,
 		operatorv1alpha1.AddToScheme,
+		extensionsv1alpha1.AddToScheme,
 	}).AddToScheme(scheme))
 
 	decoder = serializer.NewCodecFactory(scheme).UniversalDecoder(
 		gardencorev1.SchemeGroupVersion,
 		gardencorev1beta1.SchemeGroupVersion,
+		extensionsv1alpha1.SchemeGroupVersion,
 		operatorv1alpha1.SchemeGroupVersion,
 		securityv1alpha1.SchemeGroupVersion,
 		corev1.SchemeGroupVersion,
@@ -60,6 +63,8 @@ type Resources struct {
 	SecretBinding           *gardencorev1beta1.SecretBinding
 	CredentialsBinding      *securityv1alpha1.CredentialsBinding
 	WorkloadIdentities      []*securityv1alpha1.WorkloadIdentity
+	BackupBucket            *extensionsv1alpha1.BackupBucket
+	BackupEntry             *extensionsv1alpha1.BackupEntry
 }
 
 // ReadManifests reads Kubernetes and Gardener manifests in YAML or JSON format.
@@ -147,6 +152,18 @@ func ReadManifests(log logr.Logger, fsys fs.FS) (Resources, error) {
 				resources.CredentialsBinding = typedObj
 			case *securityv1alpha1.WorkloadIdentity:
 				resources.WorkloadIdentities = append(resources.WorkloadIdentities, typedObj)
+
+			case *extensionsv1alpha1.BackupBucket:
+				if resources.BackupBucket != nil {
+					return fmt.Errorf("found more than one *extensionsv1alpha1.BackupBucket resource, but only one is allowed")
+				}
+				resources.BackupBucket = typedObj
+
+			case *extensionsv1alpha1.BackupEntry:
+				if resources.BackupEntry != nil {
+					return fmt.Errorf("found more than one *extensionsv1alpha1.BackupEntry resource, but only one is allowed")
+				}
+				resources.BackupEntry = typedObj
 			}
 		}
 
