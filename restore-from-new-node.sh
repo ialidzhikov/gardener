@@ -28,7 +28,7 @@ function copy_etcd_data() {
 
 # Create the setup according to the local setup with gardenadm
 make kind-single-node-up
-export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
 make gardenadm-up
 
 # Create control plane Node
@@ -62,7 +62,7 @@ data:
 EOF
 
 # Get the etcd data
-export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
 rm -rf data
 copy_etcd_data
 

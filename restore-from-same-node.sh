@@ -28,7 +28,7 @@ function copy_etcd_data() {
 
 # Create the setup according to the local setup with gardenadm
 make kind-single-node-up
-export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
 make gardenadm-up
 
 # Create control plane Node
@@ -65,7 +65,7 @@ data:
 EOF
 
 # Get the etcd data
-export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
 rm -rf data
 copy_etcd_data
 
@@ -120,5 +120,5 @@ export KUBECONFIG=/tmp/shoot--garden--root.conf
 "$(dirname "$0")/massage.sh" machine-0
 
 # Retry the restore of the Node
-export KUBECONFIG=$PWD/example/gardener-local/kind/multi-zone/kubeconfig
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --use-bootstrap-etcd
