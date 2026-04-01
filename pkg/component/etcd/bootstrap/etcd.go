@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -26,18 +27,43 @@ import (
 
 const (
 	volumeNameData          = "data"
+	volumeNameBackupBuckets = "backup-buckets"
+	volumeNameRestoreTmp    = "restoration-tmp"
 	volumeNameETCDCA        = "etcd-ca"
 	volumeNameServerTLS     = "etcd-server-tls"
 	volumeNameClientTLS     = "etcd-client-tls"
 	volumeNamePeerCA        = "etcd-peer-ca"
 	volumeNamePeerServerTLS = "etcd-peer-server-tls"
+	volumeNameEtcdConf      = "etcd-conf"
+	etcdConfigFileName      = "etcd.conf.yaml"
 
 	volumeMountPathData          = "/var/etcd/data"
+	volumeMountPathBackupBuckets = "/root"
 	volumeMountPathETCDCA        = "/var/etcd/ssl/ca"
 	volumeMountPathServerTLS     = "/var/etcd/ssl/server"
 	volumeMountPathPeerCA        = "/var/etcd/ssl/peer/ca"
 	volumeMountPathPeerServerTLS = "/var/etcd/ssl/peer/server"
+	volumeMountPathRestoreTmp    = "/tmp/restorationtmp"
+	volumeMountPathEtcdConf      = "/var/etcd/config"
 )
+
+const (
+	defaultEtcdbrctlImage               = "europe-docker.pkg.dev/gardener-project/snapshots/gardener/etcdbrctl:latest"
+	defaultBackupBucketsHostPath        = "/etc/gardener/local-backupbuckets"
+	defaultRestorationTempSnapshotsPath = volumeMountPathRestoreTmp
+)
+
+// InitializeConfig contains configuration for running `etcdbrctl initialize` before starting the bootstrap etcd.
+//
+// The init container is only added when this config is not nil and all required fields are set.
+type InitializeConfig struct {
+	EtcdbrctlImage              string
+	StorageProvider             string
+	StoreContainer              string
+	StorePrefix                 string
+	RestorationTempSnapshotsDir string
+	BackupBucketsHostPath       string
+}
 
 // Values is a set of configuration values for the Etcd component.
 type Values struct {
@@ -45,6 +71,8 @@ type Values struct {
 	Image string
 	// Role is the role of this etcd instance (main or events).
 	Role string
+	// Initialize configures an optional init container that runs `etcdbrctl initialize`.
+	Initialize *InitializeConfig
 	// PortClient is the port for the client connections.
 	PortClient int32
 	// PortPeer is the port for the peer connections.
@@ -96,6 +124,18 @@ func (e *etcdDeployer) Deploy(ctx context.Context) error {
 		return fmt.Errorf("failed to generate etcd peer certificate: %w", err)
 	}
 
+	if e.shouldRunInitialize() {
+		configMap := e.emptyEtcdConfigMap()
+		_, err = controllerutils.GetAndCreateOrMergePatch(ctx, e.client, configMap, func() error {
+			configMap.Labels = e.labels()
+			configMap.Data = map[string]string{etcdConfigFileName: e.etcdInitializeConfig()}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed creating or patching etcd initialize config ConfigMap: %w", err)
+		}
+	}
+
 	statefulSet := e.emptyStatefulSet()
 	_, err = controllerutils.GetAndCreateOrMergePatch(ctx, e.client, statefulSet, func() error {
 		statefulSet.Labels = e.labels()
@@ -111,7 +151,7 @@ func (e *etcdDeployer) Deploy(ctx context.Context) error {
 						Command: []string{
 							"etcd",
 							"--name=" + statefulSet.Name,
-							"--data-dir=" + volumeMountPathData,
+							"--data-dir=" + volumeMountPathData + "/new.etcd",
 							"--experimental-initial-corrupt-check=true",
 							"--experimental-watch-progress-notify-interval=5s",
 							"--snapshot-count=10000",
@@ -208,7 +248,7 @@ func (e *etcdDeployer) Deploy(ctx context.Context) error {
 								HostPath: &corev1.HostPathVolumeSource{
 									// etcds managed by etcd-druid store their data in <data-dir>/new.etcd, so let's
 									// prepare for the take-over already now
-									Path: staticpodtranslator.StatefulSetVolumeClaimTemplateHostPath(etcd.Name(e.values.Role)) + "/new.etcd",
+									Path: staticpodtranslator.StatefulSetVolumeClaimTemplateHostPath(etcd.Name(e.values.Role)),
 									Type: new(corev1.HostPathDirectoryOrCreate),
 								},
 							},
@@ -258,6 +298,11 @@ func (e *etcdDeployer) Deploy(ctx context.Context) error {
 			},
 		}
 
+		if e.shouldRunInitialize() {
+			statefulSet.Spec.Template.Spec.InitContainers = e.backupInitContainer()
+			statefulSet.Spec.Template.Spec.Volumes = append(statefulSet.Spec.Template.Spec.Volumes, e.backupVolumes()...)
+		}
+
 		return nil
 	})
 
@@ -270,6 +315,107 @@ func (e *etcdDeployer) Destroy(_ context.Context) error {
 
 func (e *etcdDeployer) emptyStatefulSet() *appsv1.StatefulSet {
 	return &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: Name(e.values.Role), Namespace: e.namespace}}
+}
+
+func (e *etcdDeployer) emptyEtcdConfigMap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: e.etcdConfigMapName(), Namespace: e.namespace}}
+}
+
+func (e *etcdDeployer) etcdConfigMapName() string {
+	return Name(e.values.Role) + "-config"
+}
+
+func (e *etcdDeployer) shouldRunInitialize() bool {
+	if e.values.Initialize == nil {
+		return false
+	}
+
+	cfg := *e.values.Initialize
+	return cfg.StorageProvider != "" && cfg.StoreContainer != "" && cfg.StorePrefix != ""
+}
+
+func (e *etcdDeployer) backupInitContainer() []corev1.Container {
+	cfg := *e.values.Initialize
+	if cfg.EtcdbrctlImage == "" {
+		cfg.EtcdbrctlImage = defaultEtcdbrctlImage
+	}
+	if cfg.RestorationTempSnapshotsDir == "" {
+		cfg.RestorationTempSnapshotsDir = defaultRestorationTempSnapshotsPath
+	}
+
+	dataDir := staticpodtranslator.StatefulSetVolumeClaimTemplateHostPath(etcd.Name(e.values.Role))
+
+	return []corev1.Container{{
+		Name:            "etcdbrctl-initialize",
+		Image:           cfg.EtcdbrctlImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:                ptr.To[int64](0),
+			RunAsGroup:               ptr.To[int64](0),
+			AllowPrivilegeEscalation: ptr.To(false),
+		},
+		Args: []string{
+			"initialize",
+			"--storage-provider=" + cfg.StorageProvider,
+			"--store-container=" + cfg.StoreContainer,
+			"--store-prefix=" + cfg.StorePrefix,
+			"--data-dir=" + dataDir + "/new.etcd",
+			"--restoration-temp-snapshots-dir=" + cfg.RestorationTempSnapshotsDir,
+		},
+		Env: []corev1.EnvVar{
+			{Name: "POD_NAME", Value: "etcd-bootstrap-main"},
+			{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: volumeNameBackupBuckets, MountPath: volumeMountPathBackupBuckets},
+			{Name: volumeNameData, MountPath: staticpodtranslator.StatefulSetVolumeClaimTemplateHostPath(etcd.Name(e.values.Role))},
+			{Name: volumeNameRestoreTmp, MountPath: cfg.RestorationTempSnapshotsDir},
+			{Name: volumeNameEtcdConf, MountPath: volumeMountPathEtcdConf},
+		},
+	}}
+}
+
+func (e *etcdDeployer) backupVolumes() []corev1.Volume {
+	cfg := *e.values.Initialize
+	hostPath := cfg.BackupBucketsHostPath
+	if hostPath == "" {
+		hostPath = defaultBackupBucketsHostPath
+	}
+
+	return []corev1.Volume{
+		{Name: volumeNameBackupBuckets, VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: hostPath, Type: ptr.To(corev1.HostPathDirectoryOrCreate)}}},
+		{Name: volumeNameRestoreTmp, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{Name: volumeNameEtcdConf, VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{LocalObjectReference: corev1.LocalObjectReference{Name: e.etcdConfigMapName()}, Items: []corev1.KeyToPath{{Key: etcdConfigFileName, Path: etcdConfigFileName}}}}},
+	}
+}
+
+func (e *etcdDeployer) etcdInitializeConfig() string {
+	return `advertise-client-urls:
+  etcd-bootstrap-main:
+  - https://localhost:2379
+auto-compaction-mode: periodic
+auto-compaction-retention: 30m
+client-transport-security:
+  auto-tls: false
+  cert-file: /var/etcd/ssl/server/tls.crt
+  client-cert-auth: true
+  key-file: /var/etcd/ssl/server/tls.key
+  trusted-ca-file: /var/etcd/ssl/ca/bundle.crt
+data-dir: /var/etcd/data/new.etcd
+enable-v2: false
+initial-advertise-peer-urls:
+  etcd-bootstrap-main:
+  - http://localhost:2380
+initial-cluster: etcd-bootstrap-main=http://localhost:2380
+initial-cluster-state: new
+initial-cluster-token: etcd-cluster
+listen-client-urls: https://0.0.0.0:2379
+listen-peer-urls: http://0.0.0.0:2380
+metrics: extensive
+name: etcd-config
+quota-backend-bytes: 8589934592
+snapshot-count: 10000
+`
 }
 
 func (e *etcdDeployer) labels() map[string]string {
