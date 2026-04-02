@@ -35,7 +35,7 @@ function targetMachine() {
     trap 'targetMachine stop' EXIT
     sleep 1
 
-    kubectl -n "$ns" exec -it "$machine" -- cat /etc/kubernetes/admin.conf | sed 's/api.root.garden.local.gardener.cloud/localhost:6443/' > /tmp/shoot--garden--root.conf
+    kubectl -n "$ns" exec -it "$machine" -- cat /etc/kubernetes/admin.conf | sed 's/api.root.garden.external.local.gardener.cloud/localhost:6443/' > /tmp/shoot--garden--root.conf
     export KUBECONFIG=/tmp/shoot--garden--root.conf
 }
 
