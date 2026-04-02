@@ -79,27 +79,42 @@ kubectl -n gardenadm-unmanaged-infra exec -it machine-2 -- $JOIN_COMMAND_2
 targetMachine machine-0
 ./hack/creating-workload.sh
 
-# Extract backup resources for bootstrap etcd restore and keep them locally.
-backupbucket_name=$(kubectl get backupbuckets.extensions.gardener.cloud -o jsonpath='{.items[0].metadata.name}')
-backupentry_name=$(kubectl get backupentries.extensions.gardener.cloud -o jsonpath='{.items[0].metadata.name}')
-kubectl get backupbuckets.extensions.gardener.cloud "${backupbucket_name}" -o yaml > dr-unmanaged-backupbucket.yaml
-kubectl get backupentries.extensions.gardener.cloud "${backupentry_name}" -o yaml > dr-unmanaged-backupentry.yaml
+# Switch to kind
+targetMachine stop
+targetKind
+
+# Run GAPI
+kubectl label node gardener-operator-local-control-plane worker.gardener.cloud/pool=control-plane
+make gardenadm-up SCENARIO=connect
+hack/usage/generate-virtual-garden-admin-kubeconf.sh > /tmp/virtual-garden-kubeconfig
+kubectl --kubeconfig /tmp/virtual-garden-kubeconfig get namespaces
+
+# Deploy gardenlet and register shoot to GAPI
+make gardenadm
+JOIN_COMMAND_3=$(KUBECONFIG=/tmp/virtual-garden-kubeconfig ./bin/gardenadm token create --print-connect-command --shoot-namespace=garden --shoot-name=root | tr -d '"')
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- $JOIN_COMMAND_3
+kubectl --kubeconfig /tmp/virtual-garden-kubeconfig -n garden patch shoot root --subresource status --type=merge --patch='{"status":{"lastOperation":{"state": "Succeeded"}}}'
+targetMachine machine-0
+kubectl delete pod -l role=gardenlet
+targetMachine stop
+targetKind
+sleep 15
+
+# Move shoot to machine-0 and discover it with gardenadm
+kubectl cp /tmp/virtual-garden-kubeconfig gardenadm-unmanaged-infra/machine-0:/tmp/virtual-garden-kubeconfig
+kubectl cp dev-setup/gardenadm/resources/base/shoot.yaml gardenadm-unmanaged-infra/machine-0:shoot.yaml
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0  -- gardenadm discover shoot.yaml --kubeconfig /tmp/virtual-garden-kubeconfig
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} gardenadm/resources/'
 
 # Wait for etcd snapshot to contain the workload data
 echo "Waiting for 6 minutes before copying data to have a backup with more data in it..."
 sleep 360
-
-# Switch to kind
-targetMachine stop
-targetKind
 
 # Nuke machine
 kubectl -n gardenadm-unmanaged-infra delete pod machine-0 --force
 sleep 3
 
 # First phase of recovery
-kubectl cp dr-unmanaged-backupbucket.yaml gardenadm-unmanaged-infra/machine-0:/gardenadm/resources/backupbucket.yaml
-kubectl cp dr-unmanaged-backupentry.yaml gardenadm-unmanaged-infra/machine-0:/gardenadm/resources/backupentry.yaml
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --bootstrap
 targetMachine machine-0
 ./hack/prep-cluster-2.sh machine-0
