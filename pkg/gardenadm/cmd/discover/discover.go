@@ -134,6 +134,21 @@ func run(ctx context.Context, opts *Options) error {
 		return getAndExportObject(ctx, clientSet.Client(), fs, opts, "Project", project)
 	})
 
+	backupBucket, backupEntry, err := backupResourcesForShoot(ctx, opts, clientSet.Client(), shoot)
+	if err != nil {
+		return fmt.Errorf("failed reading backup resources for shoot: %w", err)
+	}
+	if backupBucket != nil {
+		taskFns = append(taskFns, func(ctx context.Context) error {
+			return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupBucket", backupBucket)
+		})
+	}
+	if backupEntry != nil {
+		taskFns = append(taskFns, func(ctx context.Context) error {
+			return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupEntry", backupEntry)
+		})
+	}
+
 	extensions, err := requiredExtensions(ctx, clientSet.Client(), shoot, opts.ManagedInfrastructure)
 	if err != nil {
 		return fmt.Errorf("failed computing required extensions: %w", err)
@@ -216,6 +231,44 @@ func requiredExtensions(ctx context.Context, c client.Client, shoot *gardencorev
 	}
 
 	return botanist.ComputeExtensions(resources, true, managedInfrastructure)
+}
+
+func backupResourcesForShoot(ctx context.Context, opts *Options, c client.Client, shoot *gardencorev1beta1.Shoot) (*gardencorev1beta1.BackupBucket, *gardencorev1beta1.BackupEntry, error) {
+	backupEntries := &gardencorev1beta1.BackupEntryList{}
+	if err := c.List(ctx, backupEntries, client.InNamespace(shoot.Namespace)); err != nil {
+		return nil, nil, fmt.Errorf("failed listing BackupEntries in namespace %q: %w", shoot.Namespace, err)
+	}
+
+	var coreBackupEntry *gardencorev1beta1.BackupEntry
+	for i := range backupEntries.Items {
+		be := &backupEntries.Items[i]
+		if be.Spec.ShootRef == nil {
+			continue
+		}
+		if be.Spec.ShootRef.Name != shoot.Name || be.Spec.ShootRef.Namespace != shoot.Namespace {
+			continue
+		}
+
+		if coreBackupEntry != nil {
+			return nil, nil, fmt.Errorf("found more than one BackupEntry for Shoot %s/%s", shoot.Namespace, shoot.Name)
+		}
+
+		coreBackupEntry = be
+	}
+
+	if coreBackupEntry == nil {
+		return nil, nil, nil
+	}
+
+	backupBucket := &gardencorev1beta1.BackupBucket{ObjectMeta: metav1.ObjectMeta{Name: coreBackupEntry.Spec.BucketName}}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(backupBucket), backupBucket); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("failed getting core BackupBucket %q: %w", backupBucket.Name, err)
+	}
+
+	return backupBucket, coreBackupEntry, nil
 }
 
 func getAndExportObject(ctx context.Context, c client.Client, fs afero.Afero, opts *Options, kind string, obj client.Object) error {
