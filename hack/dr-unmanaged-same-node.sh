@@ -105,6 +105,7 @@ kubectl cp /tmp/virtual-garden-kubeconfig gardenadm-unmanaged-infra/machine-0:/t
 kubectl cp dev-setup/gardenadm/resources/base/shoot.yaml gardenadm-unmanaged-infra/machine-0:shoot.yaml
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0  -- gardenadm discover shoot.yaml --kubeconfig /tmp/virtual-garden-kubeconfig
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} gardenadm/resources/'
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} gardenadm/resources/'
 
 # Wait for etcd snapshot to contain the workload data
 echo "Waiting for 6 minutes before copying data to have a backup with more data in it..."
@@ -133,10 +134,9 @@ sleep 3
 # Move data to machine-0
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- mkdir -p /var/lib/etcd-main
 kubectl cp data/ gardenadm-unmanaged-infra/machine-0:/var/lib/etcd-main/data
-kubectl cp secrets.yaml gardenadm-unmanaged-infra/machine-0:/secrets.yaml
 
 # Second phase of recovery
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 --  gardenadm init -d /gardenadm/resources  --secret-file=/secrets.yaml --use-bootstrap-etcd || true
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 --  gardenadm init -d /gardenadm/resources  --use-bootstrap-etcd || true
 
 # Remove old data and secrets
 rm -rf secrets.yaml
