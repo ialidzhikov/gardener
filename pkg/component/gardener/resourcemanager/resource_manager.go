@@ -830,6 +830,7 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 
 	var (
 		tolerations       []corev1.Toleration
+		nodeSelector      map[string]string
 		env               []corev1.EnvVar
 		replicas          = r.values.Replicas
 		priorityClassName = r.values.PriorityClassName
@@ -869,6 +870,9 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 		// If 'BootstrapControlPlaneNode', there is typically no CoreDNS running yet, i.e, we cannot rely on the
 		// standard 'kubernetes.default.svc' DNS name but have to explicitly set it to 'localhost'.
 		env = append(env, corev1.EnvVar{Name: "KUBERNETES_SERVICE_HOST", Value: "localhost"})
+		nodeSelector = map[string]string{
+			"worker.gardener.cloud/pool": "control-plane",
+		}
 		replicas = ptr.To[int32](1)
 		priorityClassName = "system-cluster-critical"
 	}
@@ -972,7 +976,8 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 						},
 					},
 				},
-				Tolerations: tolerations,
+				NodeSelector: nodeSelector,
+				Tolerations:  tolerations,
 				Volumes: []corev1.Volume{
 					{
 						Name: volumeNameAPIServerAccess,
