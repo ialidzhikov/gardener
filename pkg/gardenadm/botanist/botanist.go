@@ -357,6 +357,10 @@ func newShootObject(
 		obj.ControlPlaneNamespace = resources.Shoot.Status.TechnicalID
 	}
 
+	if resources.ShootState != nil {
+		obj.SetShootState(resources.ShootState.DeepCopy())
+	}
+
 	return obj, nil
 }
 
