@@ -4,4 +4,3 @@ kubectl apply -f <(kubectl get mr shoot-core-coredns -o yaml | sed 's@  - resour
 kubectl delete mr shoot-core-coredns
 
 echo "Preparing cluster for recovery by creating workload and exporting secrets..."
-kubectl get secret -o yaml > secrets.yaml

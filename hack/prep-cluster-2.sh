@@ -23,5 +23,3 @@ kubectl get pods --all-namespaces \
   done
 kubectl delete deployment -l app=gardener-resource-manager -A 
 kubectl delete deployment machine-controller-manager --ignore-not-found
-
-kubectl get secret -o yaml > secrets.yaml
