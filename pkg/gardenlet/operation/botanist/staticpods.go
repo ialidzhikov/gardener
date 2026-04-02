@@ -57,7 +57,7 @@ func (b *Botanist) deployETCD(role string) func(context.Context) error {
 
 		if role == v1beta1constants.ETCDRoleMain {
 			if b.Resources.BackupBucket != nil && b.Resources.BackupEntry != nil {
-				storageProvider := string(b.Resources.BackupBucket.Spec.Type)
+				storageProvider := string(b.Resources.BackupBucket.Spec.Provider.Type)
 				if len(storageProvider) > 0 {
 					storageProvider = strings.ToUpper(storageProvider[:1]) + storageProvider[1:]
 				}
