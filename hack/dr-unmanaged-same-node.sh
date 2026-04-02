@@ -10,7 +10,7 @@ rm -rf pod.yaml
 PF_PID=""
 
 function targetKind() {
-    export KUBECONFIG="${KIND_KUBECONFIG:-"$PWD/example/gardener-local/kind/multi-zone/kubeconfig"}"
+    export KUBECONFIG="${KIND_KUBECONFIG:-"$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"}"
 }
 
 function targetMachine() {
@@ -37,7 +37,7 @@ function targetMachine() {
     PF_PID=$!
     trap 'targetMachine stop' EXIT
     sleep 1
-    kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- cat /etc/kubernetes/admin.conf | sed 's/api.root.garden.local.gardener.cloud/localhost:6443/' > /tmp/shoot--garden--root.conf
+    kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- cat /etc/kubernetes/admin.conf | sed 's/api.root.garden.external.local.gardener.cloud/localhost:6443/' > /tmp/shoot--garden--root.conf
     export KUBECONFIG=/tmp/shoot--garden--root.conf
 }
 
