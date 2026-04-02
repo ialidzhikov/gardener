@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+function copy_etcd_data() {
+    # Retry copy until tar doesn't warn "file changed as we read it"
+    max_attempts=50
+    success=0
+    for i in $(seq 1 "$max_attempts"); do
+        rm -rf data
+        output=$(kubectl cp gardenadm-unmanaged-infra/machine-0:/var/lib/etcd-main/data data 2>&1 || true)
+        echo "$output"
+        if echo "$output" | grep -qi 'file changed as we read it'; then
+            echo "Attempt $i/$max_attempts: tar reported 'file changed as we read it', retrying..."
+            sleep 2
+            continue
+        fi
+        success=1
+        break
+    done
+    if [ "$success" -ne 1 ]; then
+        echo "Failed to copy data after $max_attempts attempts due to 'file changed as we read it' error."
+        exit 1
+    fi
+}
+
+echo "> Creating local setup..."
+make kind-single-node-up
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
+make gardenadm-up
+
+echo "> Creating control plane Node..."
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --use-bootstrap-etcd
+
+echo "> Joining worker Nodes..."
+JOIN_COMMAND_1=$(kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm token create --print-join-command | tr -d '"')
+kubectl -n gardenadm-unmanaged-infra exec -it machine-1 -- $(echo $JOIN_COMMAND_1)
+
+JOIN_COMMAND_2=$(kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm token create --print-join-command | tr -d '"')
+kubectl -n gardenadm-unmanaged-infra exec -it machine-2 -- $(echo $JOIN_COMMAND_2)
+
+echo "> Fetching the cluster KUBECONFIG..."
+kubectl -n gardenadm-unmanaged-infra port-forward pod/machine-0 6443:443 >/dev/null 2>&1 &
+PF_PID=$!
+trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
+sleep 1
+
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- cat /etc/kubernetes/admin.conf | sed 's/api.root.garden.external.local.gardener.cloud/localhost:6443/' > /tmp/shoot--garden--root.conf
+export KUBECONFIG=/tmp/shoot--garden--root.conf
+
+echo "> Fetching Secrets with label persist=true before restoration..."
+kubectl get secrets -A -l persist=true -o yaml > /tmp/secrets-before-restore.yaml
+trap 'rm /tmp/secrets-before-restore.yaml' EXIT
+
+echo "> Creating a dummy ConfigMap..."
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testy
+  namespace: default
+data:
+  foo: bar
+EOF
+
+echo "> Getting the etcd data..."
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
+rm -rf data
+copy_etcd_data
+
+echo "> Getting the ShootState..."
+kubectl -n gardenadm-unmanaged-infra cp machine-0:/tmp/shootstate.yaml /tmp/shootstate.yaml
+
+echo "> Nuking the gardenadm-unmanaged-infra/machine-0 Pod Pod..."
+kill "$PF_PID" 2>/dev/null || true
+kubectl -n gardenadm-unmanaged-infra delete pod machine-0 --force
+sleep 3
+
+echo "> Waiting until the gardenadm-unmanaged-infra/machine-0 Pod is created again..."
+kubectl -n gardenadm-unmanaged-infra wait --for=condition=Ready pod/machine-0
+
+echo "> Copying the etcd data to the new Node..."
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- mkdir -p /var/lib/etcd-main
+kubectl cp data/ gardenadm-unmanaged-infra/machine-0:/var/lib/etcd-main/data
+
+echo "> Copying the ShootState to the new Node..."
+kubectl cp /tmp/shootstate.yaml gardenadm-unmanaged-infra/machine-0:/gardenadm/resources/shootstate.yaml
+
+echo "> Restore the control plane Node (phase I)..."
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --use-bootstrap-etcd --bootstrap-only
+
+# # Hacks / Workarounds
+# # Delete the Node object
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf delete node machine-0
+
+# # Delete all Pods on machine-0
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf delete pods --all-namespaces --field-selector spec.nodeName=machine-0 --force --grace-period=0
+
+# # Delete the shoot-core-coredns ManagedResource
+# # This managed resource is used by gardenadm to check if the Pod network is set up or not.
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system delete managedresource shoot-core-coredns --wait=false
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system patch  managedresource shoot-core-coredns --patch '{"metadata":{"finalizers":[]}}' --type=merge
+
+# # Approve manually the CSR
+# GNA_CSR_NAME=$(kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf get csr --sort-by=metadata.creationTimestamp -o json | jq -r '.items | map(select(.metadata.name | startswith("node-agent-csr-"))) | .[-1].metadata.name')
+# kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- kubectl --kubeconfig=/etc/kubernetes/admin.conf certificate approve $GNA_CSR_NAME
+
+echo "> Fetching the cluster KUBECONFIG..."
+kubectl -n gardenadm-unmanaged-infra port-forward pod/machine-0 6443:443 >/dev/null 2>&1 &
+PF_PID=$!
+trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
+sleep 1
+
+# We don't fetch again the KUBECONFIG from the machine-0 Pod.
+# Instead, we ensure that the KUBECONFIG fetched before the disaster recovery event continues to work after the restoration.
+export KUBECONFIG=/tmp/shoot--garden--root.conf
+
+# TODO: Find out exactly what we miss from massage.sh and add it to the hacks above.
+echo "> Applying hacks/workarounds..."
+"$(dirname "$0")/massage.sh" machine-0
+
+echo "> Fetching Secrets with label persist=true after restoration..."
+kubectl get secrets -A -l persist=true -o yaml > /tmp/secrets-after-restore.yaml
+trap 'rm /tmp/secrets-after-restore.yaml' EXIT
+
+echo "> Comparing Secrets with label persist=true before and after restoration..."
+if diff /tmp/secrets-before-restore.yaml /tmp/secrets-after-restore.yaml > /dev/null; then
+    echo "Secrets match - no differences found!"
+else
+    echo "Error: Secrets differ after restore!" >&2
+    exit 1
+fi
+
+echo "> Restore the control plane Node (phase II)..."
+export KUBECONFIG=$PWD/dev-setup/kubeconfigs/runtime/kubeconfig
+kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --use-bootstrap-etcd
