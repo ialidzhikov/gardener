@@ -36,6 +36,8 @@ type Options struct {
 	// If it has exactly one zone configured, that zone is automatically applied and the flag is optional.
 	// If it has no zones configured, this flag must not be set.
 	Zone string
+
+	Recover bool
 }
 
 // ParseArgs parses the arguments to the options.
@@ -49,7 +51,27 @@ func (o *Options) Validate() error {
 		return err
 	}
 
+	if err := o.validateFlagCombinations(); err != nil {
+		return err
+	}
+
 	return o.validateZone()
+}
+
+func (o *Options) validateFlagCombinations() error {
+	if !o.Recover {
+		return nil
+	}
+
+	if o.Bootstrap {
+		return fmt.Errorf("--recover cannot be combined with --bootstrap")
+	}
+
+	if o.SecretFile != "" {
+		return fmt.Errorf("--recover cannot be combined with --secret-file")
+	}
+
+	return nil
 }
 
 // validateZone validates the zone configuration against the shoot specification.
