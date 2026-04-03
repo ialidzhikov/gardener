@@ -64,6 +64,29 @@ gardenadm init --config-dir /path/to/manifests --zone zone-a`,
 }
 
 func run(ctx context.Context, opts *Options) error {
+	if opts.Recover {
+		return runRecover(ctx, opts)
+	}
+
+	return runInit(ctx, opts)
+}
+
+func runRecover(ctx context.Context, opts *Options) error {
+	phaseOpts := *opts
+	phaseOpts.Recover = false
+	phaseOpts.Bootstrap = true
+
+	if _, err := bootstrapControlPlane(ctx, &phaseOpts); err != nil {
+		return fmt.Errorf("failed first recovery phase: %w", err)
+	}
+
+	phaseOpts.Bootstrap = false
+	phaseOpts.UseBootstrapEtcd = true
+
+	return runInit(ctx, &phaseOpts)
+}
+
+func runInit(ctx context.Context, opts *Options) error {
 	b, err := bootstrapControlPlane(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed bootstrapping control plane: %w", err)
