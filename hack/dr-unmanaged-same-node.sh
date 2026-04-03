@@ -83,9 +83,11 @@ kubectl -n gardenadm-unmanaged-infra exec -it machine-0  -- gardenadm discover s
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} gardenadm/resources/'
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} gardenadm/resources/'
 
-# Nuke machine
-kubectl -n gardenadm-unmanaged-infra delete pod machine-0 --force
-sleep 3
+# Nuke machine but retain IP address
+machine_pod=$(docker exec -it gardener-operator-local-control-plane crictl pods | grep machine-0 | cut -d ' ' -f 1)
+machine_container=$(docker exec -it gardener-operator-local-control-plane crictl ps | grep "$machine_pod" | cut -d ' ' -f 1)
+docker exec -it gardener-operator-local-control-plane crictl stop "$machine_container"
+sleep 100
 
 # Recovery (bootstrap + prep + second phase)
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
