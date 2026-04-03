@@ -29,6 +29,8 @@ type Options struct {
 	// If it has exactly one zone configured, that zone is automatically applied and the flag is optional.
 	// If it has no zones configured, this flag must not be set.
 	Zone string
+
+	Recover bool
 }
 
 // ParseArgs parses the arguments to the options.
@@ -42,7 +44,27 @@ func (o *Options) Validate() error {
 		return err
 	}
 
+	if err := o.validateFlagCombinations(); err != nil {
+		return err
+	}
+
 	return o.validateZone()
+}
+
+func (o *Options) validateFlagCombinations() error {
+	if !o.Recover {
+		return nil
+	}
+
+	if o.Bootstrap {
+		return fmt.Errorf("--recover cannot be combined with --bootstrap")
+	}
+
+	if o.SecretFile != "" {
+		return fmt.Errorf("--recover cannot be combined with --secret-file")
+	}
+
+	return nil
 }
 
 // validateZone validates the zone configuration against the shoot specification.
@@ -87,4 +109,5 @@ func (o *Options) addFlags(fs *pflag.FlagSet) {
 	o.ManifestOptions.AddFlags(fs)
 	fs.BoolVar(&o.UseBootstrapEtcd, "use-bootstrap-etcd", false, "If set, the control plane continues using the bootstrap etcd instead of transitioning to etcd-druid. This is useful for testing purposes to save time.")
 	fs.StringVarP(&o.Zone, "zone", "z", "", "Availability zone for the new node. Required if the control plane worker pool in the Shoot has multiple zones configured. Optional if exactly one zone is configured (applied automatically). Must not be set if no zones are configured.")
+	fs.BoolVar(&o.Recover, "recover", false, "If set, run control plane recovery flow.")
 }
