@@ -15,7 +15,14 @@ import (
 	"k8s.io/utils/ptr"
 
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
+	appsv1 "k8s.io/api/apps/v1"
+	certificatesv1 "k8s.io/api/certificates/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
+
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	seedsystem "github.com/gardener/gardener/pkg/component/seed/system"
 	gardenerextensions "github.com/gardener/gardener/pkg/extensions"
@@ -80,10 +87,122 @@ func runRecover(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed first recovery phase: %w", err)
 	}
 
+	b, err := botanist.NewGardenadmBotanistFromManifests(ctx, opts.Log, nil, opts.ConfigDir, true)
+	if err != nil {
+		return fmt.Errorf("failed preparing recover cleanup: %w", err)
+	}
+	b.Logger.Info("TESTOOOOOOOOOO")
+	clientSet, err := b.CreateClientSet(ctx)
+	if err != nil {
+		return fmt.Errorf("failed creating client for recover cleanup: %w", err)
+	}
+	b.SeedClientSet = clientSet
+	b.ShootClientSet = clientSet
+
+	if err := prepareRecoverSecondPhase(ctx, b); err != nil {
+		return fmt.Errorf("failed preparing second recovery phase: %w", err)
+	}
+
 	phaseOpts.Bootstrap = false
 	phaseOpts.UseBootstrapEtcd = true
 
 	return runInit(ctx, &phaseOpts)
+}
+
+func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanist) error {
+	b.Logger.Info("Preparing second recovery phase cleanup")
+
+	csrList := &certificatesv1.CertificateSigningRequestList{}
+	if err := b.SeedClientSet.Client().List(ctx, csrList); err != nil {
+		return fmt.Errorf("failed listing certificate signing requests: %w", err)
+	}
+	for _, csr := range csrList.Items {
+		if csr.Spec.SignerName != "kubernetes.io/kube-apiserver-client" {
+			continue
+		}
+		b.Logger.Info("Deleting CSR", "name", csr.Name)
+		if err := b.SeedClientSet.Client().Delete(ctx, &csr); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed deleting certificate signing request %q: %w", csr.Name, err)
+		}
+	}
+
+	managedResourceList := &resourcesv1alpha1.ManagedResourceList{}
+	if err := b.SeedClientSet.Client().List(ctx, managedResourceList); err != nil {
+		return fmt.Errorf("failed listing managedresources: %w", err)
+	}
+	for _, mr := range managedResourceList.Items {
+		obj := mr.DeepCopy()
+		obj.Finalizers = deleteFinalizer(obj.Finalizers, "resources.gardener.cloud/gardener-resource-manager")
+		b.Logger.Info("Updating ManagedResource before deletion", "namespace", obj.Namespace, "name", obj.Name)
+		if err := b.SeedClientSet.Client().Update(ctx, obj); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed updating managedresource %s/%s: %w", obj.Namespace, obj.Name, err)
+		}
+		b.Logger.Info("Deleting ManagedResource", "namespace", obj.Namespace, "name", obj.Name)
+		if err := b.SeedClientSet.Client().Delete(ctx, obj); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed deleting managedresource %s/%s: %w", obj.Namespace, obj.Name, err)
+		}
+	}
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: b.HostName}}
+	b.Logger.Info("Deleting node", "name", b.HostName)
+	if err := b.SeedClientSet.Client().Delete(ctx, node); crclient.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed deleting node %q: %w", b.HostName, err)
+	}
+
+	podList := &corev1.PodList{}
+	if err := b.SeedClientSet.Client().List(ctx, podList); err != nil {
+		return fmt.Errorf("failed listing pods: %w", err)
+	}
+	for _, pod := range podList.Items {
+		if pod.Spec.NodeName != b.HostName {
+			continue
+		}
+		b.Logger.Info("Force deleting pod on recovery node", "namespace", pod.Namespace, "name", pod.Name, "node", pod.Spec.NodeName)
+		deletePolicy := metav1.DeletePropagationBackground
+		if err := b.SeedClientSet.Client().Delete(ctx, pod.DeepCopy(), &crclient.DeleteOptions{GracePeriodSeconds: ptr.To[int64](0), PropagationPolicy: &deletePolicy}); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed force deleting pod %s/%s: %w", pod.Namespace, pod.Name, err)
+		}
+	}
+
+	grmDeployments := &appsv1.DeploymentList{}
+	if err := b.SeedClientSet.Client().List(ctx, grmDeployments, crclient.MatchingLabels{v1beta1constants.LabelApp: "gardener-resource-manager"}); err != nil {
+		return fmt.Errorf("failed listing gardener-resource-manager deployments: %w", err)
+	}
+	for _, deployment := range grmDeployments.Items {
+		b.Logger.Info("Deleting gardener-resource-manager deployment", "namespace", deployment.Namespace, "name", deployment.Name)
+		if err := b.SeedClientSet.Client().Delete(ctx, deployment.DeepCopy()); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed deleting deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+		}
+	}
+
+	mcmDeploymentList := &appsv1.DeploymentList{}
+	if err := b.SeedClientSet.Client().List(ctx, mcmDeploymentList); err != nil {
+		return fmt.Errorf("failed listing deployments for machine-controller-manager cleanup: %w", err)
+	}
+	for _, deployment := range mcmDeploymentList.Items {
+		if deployment.Name != "machine-controller-manager" {
+			continue
+		}
+		b.Logger.Info("Deleting machine-controller-manager deployment", "namespace", deployment.Namespace, "name", deployment.Name)
+		if err := b.SeedClientSet.Client().Delete(ctx, deployment.DeepCopy()); crclient.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed deleting deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+		}
+	}
+
+	b.Logger.Info("Finished second recovery phase cleanup")
+
+	return nil
+}
+
+func deleteFinalizer(finalizers []string, finalizer string) []string {
+	result := make([]string, 0, len(finalizers))
+	for _, f := range finalizers {
+		if f == finalizer {
+			continue
+		}
+		result = append(result, f)
+	}
+	return result
 }
 
 func runInit(ctx context.Context, opts *Options) error {
