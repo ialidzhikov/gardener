@@ -80,7 +80,6 @@ func run(ctx context.Context, opts *Options) error {
 func runRecover(ctx context.Context, opts *Options) error {
 	phaseOpts := *opts
 	phaseOpts.Recover = false
-	phaseOpts.Bootstrap = true
 
 	if _, err := bootstrapControlPlane(ctx, &phaseOpts); err != nil {
 		return fmt.Errorf("failed first recovery phase: %w", err)
@@ -102,7 +101,6 @@ func runRecover(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed preparing second recovery phase: %w", err)
 	}
 
-	phaseOpts.Bootstrap = false
 	phaseOpts.UseBootstrapEtcd = true
 
 	return runInit(ctx, &phaseOpts)

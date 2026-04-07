@@ -134,7 +134,7 @@ func run(ctx context.Context, opts *Options) error {
 		return getAndExportObject(ctx, clientSet.Client(), fs, opts, "Project", project)
 	})
 
-	backupBucket, backupEntry, err := backupResourcesForShoot(ctx, opts, clientSet.Client(), shoot)
+	backupBucket, backupEntry, err := backupResourcesForShoot(ctx, clientSet.Client(), shoot)
 	if err != nil {
 		return fmt.Errorf("failed reading backup resources for shoot: %w", err)
 	}
@@ -233,7 +233,7 @@ func requiredExtensions(ctx context.Context, c client.Client, shoot *gardencorev
 	return botanist.ComputeExtensions(resources, true, managedInfrastructure)
 }
 
-func backupResourcesForShoot(ctx context.Context, opts *Options, c client.Client, shoot *gardencorev1beta1.Shoot) (*gardencorev1beta1.BackupBucket, *gardencorev1beta1.BackupEntry, error) {
+func backupResourcesForShoot(ctx context.Context, c client.Client, shoot *gardencorev1beta1.Shoot) (*gardencorev1beta1.BackupBucket, *gardencorev1beta1.BackupEntry, error) {
 	backupEntries := &gardencorev1beta1.BackupEntryList{}
 	if err := c.List(ctx, backupEntries, client.InNamespace(shoot.Namespace)); err != nil {
 		return nil, nil, fmt.Errorf("failed listing BackupEntries in namespace %q: %w", shoot.Namespace, err)
