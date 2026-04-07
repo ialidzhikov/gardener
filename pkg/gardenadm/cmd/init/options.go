@@ -61,14 +61,6 @@ func (o *Options) validateFlagCombinations() error {
 		return nil
 	}
 
-	if o.Bootstrap {
-		return fmt.Errorf("--recover cannot be combined with --bootstrap")
-	}
-
-	if o.SecretFile != "" {
-		return fmt.Errorf("--recover cannot be combined with --secret-file")
-	}
-
 	return nil
 }
 

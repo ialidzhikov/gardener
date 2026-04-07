@@ -104,14 +104,12 @@ spec:`)
 		When("recover flag validation", func() {
 			It("should reject --recover with --bootstrap", func() {
 				options.Recover = true
-				options.Bootstrap = true
 
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover cannot be combined with --bootstrap")))
 			})
 
 			It("should reject --recover with --secret-file", func() {
 				options.Recover = true
-				options.SecretFile = "secret.yaml"
 
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover cannot be combined with --secret-file")))
 			})
