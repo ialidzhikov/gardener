@@ -57,8 +57,15 @@ func (o *Options) Validate() error {
 }
 
 func (o *Options) validateFlagCombinations() error {
-	if !o.Recover {
-		return nil
+	if o.Recover {
+		resources, err := gardenadm.ReadManifests(o.Log, os.DirFS(o.ConfigDir))
+		if err != nil {
+			return fmt.Errorf("failed loading resources for recover validation: %w", err)
+		}
+
+		if resources.ShootState == nil {
+			return fmt.Errorf("--recover requires a ShootState resource in the config directory, but none was found")
+		}
 	}
 
 	return nil
