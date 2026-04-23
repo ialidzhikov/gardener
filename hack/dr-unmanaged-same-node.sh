@@ -47,9 +47,21 @@ kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig get names
 make gardenadm
 JOIN_COMMAND_3=$(KUBECONFIG=./dev-setup/kubeconfigs/virtual-garden/kubeconfig ./bin/gardenadm token create --print-connect-command --shoot-namespace=garden --shoot-name=root | tr -d '"')
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- $JOIN_COMMAND_3
-kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden patch shoot root --subresource status --type=merge --patch='{"status":{"lastOperation":{"state": "Succeeded"}}}'
+kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden patch shoot root --subresource status --type=merge --patch='{"status":{"lastOperation":{"type": "Create","state": "Succeeded"}}}'
+echo "> Rolling out the kube-system/gardenlet Deployment..."
 targetMachine machine-0
-kubectl delete pod -l role=gardenlet
+kubectl -n kube-system rollout restart deployment/gardenlet
+echo "> Waiting until the kube-system/gardenlet Deployment successfully rolled out..."
+kubectl -n kube-system rollout status deployment/gardenlet
+echo "> Waiting until the ShootState is created..."
+# Wait until the ShootState is created (retry up to 6 times with 10s interval)
+for i in {1..6}; do
+  if kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden get shootstate root &> /dev/null; then
+    break
+  fi
+  echo "> Attempt $i/6: Waiting until garden/root ShootState is created. Sleeping 10s..."
+  sleep 10
+done
 targetKind
 sleep 15
 
