@@ -44,7 +44,7 @@ targetKind
 kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig get namespaces
 
 # Deploy gardenlet and register shoot to GAPI
-make gardenadm
+make -B gardenadm
 JOIN_COMMAND_3=$(KUBECONFIG=./dev-setup/kubeconfigs/virtual-garden/kubeconfig ./bin/gardenadm token create --print-connect-command --shoot-namespace=garden --shoot-name=root | tr -d '"')
 kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- $JOIN_COMMAND_3
 kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden patch shoot root --subresource status --type=merge --patch='{"status":{"lastOperation":{"type": "Create","state": "Succeeded"}}}'
