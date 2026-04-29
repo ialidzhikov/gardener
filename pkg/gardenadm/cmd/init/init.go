@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"k8s.io/utils/ptr"
 
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
@@ -20,6 +21,7 @@ import (
 	"github.com/gardener/gardener/pkg/gardenlet/operation/botanist"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	gardenletutils "github.com/gardener/gardener/pkg/utils/gardener/gardenlet"
+	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 )
 
 // NewCommand creates a new cobra.Command.
@@ -119,7 +121,7 @@ func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanis
 	}
 	for _, mr := range managedResourceList.Items {
 		obj := mr.DeepCopy()
-		obj.Finalizers = deleteFinalizer(obj.Finalizers, "resources.gardener.cloud/gardener-resource-manager")
+		obj.SetFinalizers(nil)
 		b.Logger.Info("Updating ManagedResource before deletion", "namespace", obj.Namespace, "name", obj.Name)
 		if err := b.SeedClientSet.Client().Update(ctx, obj); crclient.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("failed updating managedresource %s/%s: %w", obj.Namespace, obj.Name, err)
@@ -128,6 +130,14 @@ func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanis
 		if err := b.SeedClientSet.Client().Delete(ctx, obj); crclient.IgnoreNotFound(err) != nil {
 			return fmt.Errorf("failed deleting managedresource %s/%s: %w", obj.Namespace, obj.Name, err)
 		}
+	}
+
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	b.Logger.Info("Waiting for ManagedResources clean up")
+	if err := kubernetesutils.WaitUntilResourcesDeleted(ctxWithTimeout, b.SeedClientSet.Client(), managedResourceList, 10*time.Second); err != nil {
+		return fmt.Errorf("failed to wait until managedresources deletion: %w", err)
 	}
 
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: b.HostName}}
