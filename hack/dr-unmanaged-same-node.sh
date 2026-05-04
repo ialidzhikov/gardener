@@ -35,9 +35,9 @@ targetMachine machine-0
 # Switch to kind
 targetKind
 
-# Run GAPI
+# Run GAPI in the kind cluster
 kubectl label node gardener-operator-local-control-plane worker.gardener.cloud/pool=control-plane
-make gardenadm-up SCENARIO=connect
+make gardenadm-up SCENARIO=connect-kind
 
 targetKind
 
