@@ -2,7 +2,8 @@
 
 kubectl create configmap experimental-configmap --from-literal=content='experimenting with control plane disaster recovery'
 
-echo 'apiVersion: v1
+kubectl apply -f - <<EOF
+apiVersion: v1
 kind: Pod
 metadata:
   name: date-echo
@@ -12,9 +13,7 @@ spec:
     image: busybox:1.36
     command: ["/bin/sh","-c"]
     args: ["while true; do date; sleep 3; done"]
-  restartPolicy: Always' > pod.yaml
-  
-kubectl apply -f pod.yaml
+  restartPolicy: Always
+EOF
 
-sleep 5
-
+kubectl wait --for=condition=Ready pod/date-echo --timeout=60s

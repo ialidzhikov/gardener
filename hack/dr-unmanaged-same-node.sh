@@ -2,59 +2,65 @@
 
 set -e
 
-# Remove created yaml files
-rm -rf pod.yaml
-
-PF_PID=""
-
 function targetKind() {
-    export KUBECONFIG="${KIND_KUBECONFIG:-"$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"}"
+    export KUBECONFIG="$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"
 }
 
 function targetMachine() {
-    ./hack/usage/generate-admin-kubeconfig-local.sh self-hosted-shoot > "$PWD/dev-setup/kubeconfigs/self-hosted-shoot/kubeconfig"
-    export KUBECONFIG="$PWD/dev-setup/kubeconfigs/self-hosted-shoot/kubeconfig"
+    KUBECONFIG_SELFHOSTEDSHOOT_CLUSTER="$PWD/dev-setup/kubeconfigs/self-hosted-shoot/kubeconfig"
+    ./hack/usage/generate-kubeconfig.sh self-hosted-shoot --docker gind-machine-0 > "$KUBECONFIG_SELFHOSTEDSHOOT_CLUSTER"
+    export KUBECONFIG="$KUBECONFIG_SELFHOSTEDSHOOT_CLUSTER"
 }
 
-# Setup kind and gardenadm
-make kind-single-node-up
-targetKind
-make gardenadm-up
+echo "> Setting up gind (machine containers only)..."
+make gind-up SCENARIO=machines
 
-# 1 control-plane node and 2 worker nodes setup
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources
-JOIN_COMMAND_1=$(kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm token create --print-join-command | tr -d '"')
-kubectl -n gardenadm-unmanaged-infra exec -it machine-1 -- $JOIN_COMMAND_1
-JOIN_COMMAND_2=$(kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm token create --print-join-command | tr -d '"')
-kubectl -n gardenadm-unmanaged-infra exec -it machine-2 -- $JOIN_COMMAND_2
+echo "> Initializing control plane Node..."
+# TODO: Can we use the "--use-bootstrap-etcd" flag?
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources
 
-# Creating dummy workload
-targetMachine machine-0
-./hack/creating-workload.sh
+echo "> Joining gind-machine-1 worker Node..."
+JOIN_COMMAND_1=$(docker exec -ti gind-machine-0 gardenadm token create --print-join-command | tr -d '"')
+docker exec -ti gind-machine-1 $(echo $JOIN_COMMAND_1)
+echo "> Joining gind-machine-2 worker Node..."
+JOIN_COMMAND_2=$(docker exec -ti gind-machine-0 gardenadm token create --print-join-command | tr -d '"')
+docker exec -ti gind-machine-2 $(echo $JOIN_COMMAND_2)
 
-# Switch to kind
-targetKind
+echo "> Creating dummy workload..."
+targetMachine
+./hack/create-workload.sh
 
-# Run GAPI in the kind cluster
-kubectl label node gardener-operator-local-control-plane worker.gardener.cloud/pool=control-plane
+echo "> Setting up Gardener control plane in the kind cluster..."
+make kind-up
 make gardenadm-up SCENARIO=connect-kind
 
+echo "> Ensuring GRM is scheduled on the kind's control plane Node..."
 targetKind
+# This is related to a workaround in the PoC branch.
+kubectl label node gardener-local-control-plane worker.gardener.cloud/pool=control-plane
 
+echo "> Sanity checking that gardener-apiserver is running..."
 kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig get namespaces
 
-# Deploy gardenlet and register shoot to GAPI
+echo "> Building gardenadm binary..."
 make -B gardenadm
-JOIN_COMMAND_3=$(KUBECONFIG=./dev-setup/kubeconfigs/virtual-garden/kubeconfig ./bin/gardenadm token create --print-connect-command --shoot-namespace=garden --shoot-name=root | tr -d '"')
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- $JOIN_COMMAND_3
+
+echo "> Connecting the Shoot cluster to Gardener..."
+CONNECT_COMMAND=$(KUBECONFIG=./dev-setup/kubeconfigs/virtual-garden/kubeconfig ./bin/gardenadm token create --print-connect-command --shoot-namespace=garden --shoot-name=root | tr -d '"')
+docker exec -ti gind-machine-0 $(echo $CONNECT_COMMAND)
+
+echo "> Obtaining a ShootState resource for the Shoot..."
+# Patching the Shoot status with a successful last operation is required to allow the shootstate-controller to create a ShootState for the Shoot
+echo "> Patching the Shoot status with a successful create lastOperation..."
 kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden patch shoot root --subresource status --type=merge --patch='{"status":{"lastOperation":{"type": "Create","state": "Succeeded"}}}'
-echo "> Rolling out the kube-system/gardenlet Deployment..."
-targetMachine machine-0
+
+# Rolling out the gardenlet Deployment is required to trigger the shootstate-controller to create a ShootState for the Shoot
+echo "> Rolling out the kube-system/gardenlet Deployment to trigger ShootState creation..."
+targetMachine
 kubectl -n kube-system rollout restart deployment/gardenlet
 echo "> Waiting until the kube-system/gardenlet Deployment successfully rolled out..."
 kubectl -n kube-system rollout status deployment/gardenlet
 echo "> Waiting until the ShootState is created..."
-# Wait until the ShootState is created (retry up to 6 times with 10s interval)
 for i in {1..6}; do
   if kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig -n garden get shootstate root &> /dev/null; then
     break
@@ -62,24 +68,31 @@ for i in {1..6}; do
   echo "> Attempt $i/6: Waiting until garden/root ShootState is created. Sleeping 10s..."
   sleep 10
 done
-targetKind
+
 sleep 15
 
-# Move shoot to machine-0 and discover it with gardenadm
-kubectl cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gardenadm-unmanaged-infra/machine-0:/tmp/virtual-garden-kubeconfig
-kubectl cp dev-setup/gardenadm/resources/base/shoot.yaml gardenadm-unmanaged-infra/machine-0:shoot.yaml
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0  -- gardenadm discover shoot.yaml --kubeconfig /tmp/virtual-garden-kubeconfig
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} gardenadm/resources/'
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} gardenadm/resources/'
+echo "> Simulating a disaster event..."
+echo "> Stopping the gind-machine-0 container..."
+docker stop gind-machine-0
+echo "> Deleting the gind-machine-0 container with its volumes..."
+docker rm --volumes gind-machine-0
 
-# Nuke machine but retain IP address
-machine_pod=$(docker exec -it gardener-operator-local-control-plane crictl pods | grep machine-0 | cut -d ' ' -f 1)
-machine_container=$(docker exec -it gardener-operator-local-control-plane crictl ps | grep "$machine_pod" | cut -d ' ' -f 1)
-docker exec -it gardener-operator-local-control-plane crictl stop "$machine_container"
+echo "> Setting up gind (recreating the gind-machine-0 container)..."
+make gind-up SCENARIO=machines
+
+echo "> Copying Shoot manifest and virtual garden kubeconfig to the gind-machine-0 container..."
+docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-0:/virtual-garden-kubeconfig
+docker cp ./dev-setup/gardenadm/resources/base/shoot.yaml gind-machine-0:/shoot.yaml
+
+echo "> Downloading Gardener configuration resources for the Shoot..."
+docker exec -ti gind-machine-0 gardenadm discover /shoot.yaml --kubeconfig /virtual-garden-kubeconfig
+docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} /gardenadm/resources/'
+docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} /gardenadm/resources/'
+
+# TODO: Replace the hard-coded wait by triggering etcd snapshot programatically.
+echo "> Sleeping 100s to allow an etcd snapshot to be created..."
 sleep 100
 
-# Recovery (bootstrap + prep + second phase)
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
-
-# Remove created yaml files
-rm -rf pod.yaml
+echo "> Restoring the control plane Node..."
+# TODO: Check why GRM gets deployed to worker Nodes
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
