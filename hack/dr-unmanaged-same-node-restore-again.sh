@@ -2,14 +2,23 @@
 
 set -euo pipefail
 
-# Update the gardenadm binary and its image vector overwrite
-make gardenadm-up
+echo "> Simulating a disaster event..."
+echo "> Stopping the gind-machine-0 container..."
+docker stop gind-machine-0
+echo "> Deleting the gind-machine-0 container with its volumes..."
+docker rm --volumes gind-machine-0
 
-# Nuke machine but retain IP address
-machine_pod=$(docker exec -it gardener-operator-local-control-plane crictl pods | grep machine-0 | cut -d ' ' -f 1)
-machine_container=$(docker exec -it gardener-operator-local-control-plane crictl ps | grep "$machine_pod" | cut -d ' ' -f 1)
-docker exec -it gardener-operator-local-control-plane crictl stop "$machine_container"
-sleep 100
+echo "> Setting up gind (recreating the gind-machine-0 container)..."
+make gind-up SCENARIO=machines
 
-# Recovery (bootstrap + prep + second phase)
-kubectl -n gardenadm-unmanaged-infra exec -it machine-0 -- gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
+echo "> Copying Shoot manifest and virtual garden kubeconfig to the gind-machine-0 container..."
+docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-0:/virtual-garden-kubeconfig
+docker cp ./dev-setup/gardenadm/resources/base/shoot.yaml gind-machine-0:/shoot.yaml
+
+echo "> Downloading Gardener configuration resources for the Shoot..."
+docker exec -ti gind-machine-0 gardenadm discover /shoot.yaml --kubeconfig /virtual-garden-kubeconfig
+docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} /gardenadm/resources/'
+docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} /gardenadm/resources/'
+
+echo "> Restoring the control plane Node..."
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd

@@ -191,17 +191,6 @@ func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanis
 	return nil
 }
 
-func deleteFinalizer(finalizers []string, finalizer string) []string {
-	result := make([]string, 0, len(finalizers))
-	for _, f := range finalizers {
-		if f == finalizer {
-			continue
-		}
-		result = append(result, f)
-	}
-	return result
-}
-
 func runInit(ctx context.Context, opts *Options) error {
 	b, err := bootstrapControlPlane(ctx, opts)
 	if err != nil {
