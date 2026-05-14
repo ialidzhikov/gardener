@@ -148,6 +148,7 @@ func (b *GardenadmBotanist) ApproveNodeAgentCertificateSigningRequest(ctx contex
 		return fmt.Errorf("failed listing certificate signing requests: %w", err)
 	}
 
+	foundForApproval := false
 	for _, csr := range csrList.Items {
 		if csr.Spec.Username == username && csr.Spec.SignerName == certificatesv1.KubeAPIServerClientSignerName {
 			x509cr, err := utils.DecodeCertificateRequest(csr.Spec.Request)
@@ -172,13 +173,18 @@ func (b *GardenadmBotanist) ApproveNodeAgentCertificateSigningRequest(ctx contex
 				if err := b.SeedClientSet.Client().SubResource("approval").Update(ctx, &csr); err != nil {
 					return fmt.Errorf("failed approving certificate signing request: %w", err)
 				}
+
+				foundForApproval = true
 			}
 
-			return nil
 		}
 	}
 
-	return fmt.Errorf("no certificate signing request found for gardener-node-agent from username %q", username)
+	if !foundForApproval {
+		return fmt.Errorf("no certificate signing request found to approve for gardener-node-agent from username %q", username)
+	}
+
+	return nil
 }
 
 // FinalizeGardenerNodeAgentBootstrapping deletes the temporary cluster-admin ClusterRoleBinding for
