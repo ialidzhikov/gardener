@@ -698,16 +698,10 @@ func (r *Reconciler) MutateSpecForSelfHostedShootExtensions(obj runtime.Object) 
 	if r.SelfHostedShootMeta == nil {
 		return nil
 	}
-	if deployment, ok := obj.(*appsv1.Deployment); ok {
-		deployment.Spec.Template.Spec.NodeSelector = map[string]string{
-			"worker.gardener.cloud/pool": "control-plane",
-		}
-	}
 
 	if r.BootstrapControlPlaneNode {
 		if deployment, ok := obj.(*appsv1.Deployment); ok {
 			deployment.Spec.Replicas = ptr.To(int32(1))
-
 			deployment.Spec.Strategy.Type = appsv1.RecreateDeploymentStrategyType
 			deployment.Spec.Strategy.RollingUpdate = nil
 		}
