@@ -238,20 +238,6 @@ func runInit(ctx context.Context, opts *Options) error {
 			Fn:           flow.TaskFn(b.ApproveNodeAgentCertificateSigningRequest).RetryUntilTimeout(2*time.Second, time.Minute),
 			Dependencies: flow.NewTaskIDs(activateGardenerNodeAgent),
 		})
-		verifyControlPlaneNodeExists = g.Add(flow.Task{
-			Name: "Verifying control-plane worker node exists",
-			Fn: flow.TaskFn(func(ctx context.Context) error {
-				nodes := &corev1.NodeList{}
-				if err := b.SeedClientSet.Client().List(ctx, nodes, crclient.MatchingLabels(map[string]string{"worker.gardener.cloud/pool": "control-plane"})); err != nil {
-					return fmt.Errorf("listing nodes with label worker.gardener.cloud/pool=control-plane: %w", err)
-				}
-				if len(nodes.Items) == 0 {
-					return fmt.Errorf("no node with label worker.gardener.cloud/pool=control-plane found; ensure a control-plane node has joined")
-				}
-				return nil
-			}).RetryUntilTimeout(5*time.Second, 2*time.Minute),
-			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR, deployGardenNamespace),
-		})
 		deployGardenerResourceManager = g.Add(flow.Task{
 			Name: "Deploying gardener-resource-manager",
 			Fn: func(ctx context.Context) error {
@@ -267,7 +253,7 @@ func runInit(ctx context.Context, opts *Options) error {
 					b.Shoot.Components.ControlPlane.ResourceManager.Deploy,
 				)(ctx)
 			},
-			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR, deployGardenNamespace, verifyControlPlaneNodeExists),
+			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR, deployGardenNamespace),
 		})
 		waitUntilGardenerResourceManagerReady = g.Add(flow.Task{
 			Name: "Waiting until gardener-resource-manager reports readiness",

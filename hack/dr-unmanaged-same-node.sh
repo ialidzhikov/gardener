@@ -34,11 +34,6 @@ echo "> Setting up Gardener control plane in the kind cluster..."
 make kind-up
 make gardenadm-up SCENARIO=connect-kind
 
-echo "> Ensuring GRM is scheduled on the kind's control plane Node..."
-targetKind
-# This is related to a workaround in the PoC branch.
-kubectl label node gardener-local-control-plane worker.gardener.cloud/pool=control-plane
-
 echo "> Sanity checking that gardener-apiserver is running..."
 kubectl --kubeconfig ./dev-setup/kubeconfigs/virtual-garden/kubeconfig get namespaces
 
