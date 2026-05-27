@@ -81,7 +81,6 @@ func runRecover(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return fmt.Errorf("failed preparing recover cleanup: %w", err)
 	}
-	b.Logger.Info("TESTOOOOOOOOOO")
 	clientSet, err := b.CreateClientSet(ctx)
 	if err != nil {
 		return fmt.Errorf("failed creating client for recover cleanup: %w", err)
