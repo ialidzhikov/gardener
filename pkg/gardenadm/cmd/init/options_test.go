@@ -57,6 +57,19 @@ spec:
 		})
 	})
 
+	createShootStateManifest := func() {
+		var shootStateManifest strings.Builder
+		shootStateManifest.WriteString(`apiVersion: core.gardener.cloud/v1beta1
+kind: ShootState
+metadata:
+  name: test-shoot
+  namespace: garden-test
+spec:
+  gardener:
+  extensions:`)
+		Expect(os.WriteFile(filepath.Join(configDir, "state.yaml"), []byte(shootStateManifest.String()), 0644)).To(Succeed())
+	}
+
 	createShootManifest := func(credentialsBindingName string, zones []string, isControlPlane bool) {
 		var shootManifest strings.Builder
 		shootManifest.WriteString(`apiVersion: core.gardener.cloud/v1beta1
@@ -102,16 +115,25 @@ spec:`)
 
 	Describe("#Validate", func() {
 		When("recover flag validation", func() {
-			It("should reject --recover with --bootstrap", func() {
-				options.Recover = true
-
-				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover cannot be combined with --bootstrap")))
+			BeforeEach(func() {
+				createShootManifest("test-credentials", nil, true)
+				createShootStateManifest()
 			})
 
-			It("should reject --recover with --secret-file", func() {
+			It("should reject --recover without --prior-node-name", func() {
 				options.Recover = true
+				options.PriorNodeName = ""
 
-				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover cannot be combined with --secret-file")))
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover must be combined with --prior-node-name")))
+			})
+		})
+
+		When("prior-node-name flag validation", func() {
+			It("should reject --prior-node-name without --recover", func() {
+				options.Recover = false
+				options.PriorNodeName = "node-01"
+
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--prior-node-name must be combined with --recover")))
 			})
 		})
 

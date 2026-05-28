@@ -21,4 +21,4 @@ docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep backup |
 docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} /gardenadm/resources/'
 
 echo "> Restoring the control plane Node..."
-docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --prior-node-name=gind-machine-0 --use-bootstrap-etcd
