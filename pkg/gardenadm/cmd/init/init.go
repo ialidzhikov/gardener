@@ -88,7 +88,7 @@ func runRecover(ctx context.Context, opts *Options) error {
 	b.SeedClientSet = clientSet
 	b.ShootClientSet = clientSet
 
-	if err := prepareRecoverSecondPhase(ctx, b); err != nil {
+	if err := prepareRecoverSecondPhase(ctx, b, opts); err != nil {
 		return fmt.Errorf("failed preparing second recovery phase: %w", err)
 	}
 
@@ -97,7 +97,7 @@ func runRecover(ctx context.Context, opts *Options) error {
 	return runInit(ctx, &phaseOpts)
 }
 
-func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanist) error {
+func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanist, opts *Options) error {
 	b.Logger.Info("Preparing second recovery phase cleanup")
 
 	managedResourceList := &resourcesv1alpha1.ManagedResourceList{}
@@ -125,7 +125,7 @@ func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanis
 		return fmt.Errorf("failed to wait until managedresources deletion: %w", err)
 	}
 
-	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: b.HostName}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: opts.PriorNodeName}}
 	b.Logger.Info("Deleting node", "name", b.HostName)
 	if err := b.SeedClientSet.Client().Delete(ctx, node); crclient.IgnoreNotFound(err) != nil {
 		return fmt.Errorf("failed deleting node %q: %w", b.HostName, err)
@@ -136,7 +136,7 @@ func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanis
 		return fmt.Errorf("failed listing pods: %w", err)
 	}
 	for _, pod := range podList.Items {
-		if pod.Spec.NodeName != b.HostName {
+		if pod.Spec.NodeName != opts.PriorNodeName {
 			continue
 		}
 		b.Logger.Info("Force deleting pod on recovery node", "namespace", pod.Namespace, "name", pod.Name, "node", pod.Spec.NodeName)
