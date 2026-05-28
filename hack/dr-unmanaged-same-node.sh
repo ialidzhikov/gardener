@@ -120,4 +120,4 @@ docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep shootsta
 
 echo "> Restoring the control plane Node..."
 # TODO: Check why GRM gets deployed to worker Nodes
-docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --prior-node-name=gind-machine-0 --use-bootstrap-etcd
