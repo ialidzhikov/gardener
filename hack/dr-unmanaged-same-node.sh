@@ -111,13 +111,15 @@ make gind-up SCENARIO=machines
 
 echo "> Copying Shoot manifest and virtual garden kubeconfig to the gind-machine-0 container..."
 docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-0:/virtual-garden-kubeconfig
-docker cp ./dev-setup/gardenadm/resources/base/shoot.yaml gind-machine-0:/shoot.yaml
 
 echo "> Downloading Gardener configuration resources for the Shoot..."
-docker exec -ti gind-machine-0 gardenadm discover /shoot.yaml --kubeconfig /virtual-garden-kubeconfig
-docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} /gardenadm/resources/'
-docker exec -ti gind-machine-0 sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} /gardenadm/resources/'
+docker exec -ti gind-machine-0 mkdir /gardenadm/discover-output
+docker exec -ti gind-machine-0 gardenadm discover --shoot-name root --shoot-namespace garden --kubeconfig /virtual-garden-kubeconfig -d /gardenadm/discover-output
+docker exec -ti gind-machine-0 rm /gardenadm/discover-output/lease-self-hosted-shoot-root.yaml
 
 echo "> Restoring the control plane Node..."
 # TODO: Check why GRM gets deployed to worker Nodes
-docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources --recover --prior-node-name=gind-machine-0 --use-bootstrap-etcd
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/discover-output --recover --prior-node-name=gind-machine-0 --use-bootstrap-etcd
+
+echo "> Verifying the control plane Node restoration..."
+./hack/dr-verify-restore.sh

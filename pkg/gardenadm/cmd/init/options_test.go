@@ -70,7 +70,7 @@ spec:
 		Expect(os.WriteFile(filepath.Join(configDir, "state.yaml"), []byte(shootStateManifest.String()), 0644)).To(Succeed())
 	}
 
-	createShootManifest := func(credentialsBindingName string, zones []string, isControlPlane bool) {
+	createShootManifest := func(credentialsBindingName string, zones []string, isControlPlane bool, statusUID string) {
 		var shootManifest strings.Builder
 		shootManifest.WriteString(`apiVersion: core.gardener.cloud/v1beta1
 kind: Shoot
@@ -102,8 +102,13 @@ spec:`)
       - ` + zone)
 			}
 		}
-		shootManifest.WriteString(`
+		shootManifest.WriteString("\n")
+		if statusUID != "" {
+			shootManifest.WriteString(`status:
+  uid: ` + statusUID + `
 `)
+		}
+
 		Expect(os.WriteFile(filepath.Join(configDir, "shoot.yaml"), []byte(shootManifest.String()), 0644)).To(Succeed())
 	}
 
@@ -116,8 +121,24 @@ spec:`)
 	Describe("#Validate", func() {
 		When("recover flag validation", func() {
 			BeforeEach(func() {
-				createShootManifest("test-credentials", nil, true)
+				createShootManifest("test-credentials", nil, true, "abcd-1234-uid")
 				createShootStateManifest()
+			})
+
+			It("should reject --recover when ShootState manifest is missing", func() {
+				Expect(os.Remove(filepath.Join(configDir, "state.yaml"))).To(Succeed())
+				options.Recover = true
+				options.PriorNodeName = "node-01"
+
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires a ShootState resource in the config directory, but none was found")))
+			})
+
+			It("should reject --recover when Shoot .status.uid is empty", func() {
+				createShootManifest("test-credentials", nil, true, "")
+				options.Recover = true
+				options.PriorNodeName = "node-01"
+
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires the Shoot manifest in the config directory to have .status.uid set")))
 			})
 
 			It("should reject --recover without --prior-node-name", func() {
@@ -125,6 +146,13 @@ spec:`)
 				options.PriorNodeName = ""
 
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover must be combined with --prior-node-name")))
+			})
+
+			It("should accept --recover when all prerequisites are met", func() {
+				options.Recover = true
+				options.PriorNodeName = "node-01"
+
+				Expect(options.Validate()).To(Succeed())
 			})
 		})
 
@@ -149,14 +177,14 @@ spec:`)
 		})
 
 		It("should fail when control plane worker pool is not found", func() {
-			createShootManifest("", nil, false)
+			createShootManifest("", nil, false, "")
 
 			Expect(options.Validate()).To(MatchError(ContainSubstring("shoot doesn't have a control plane worker pool configured")))
 		})
 
 		When("zone validation with managed infrastructure", func() {
 			BeforeEach(func() {
-				createShootManifest("test-credentials", nil, true)
+				createShootManifest("test-credentials", nil, true, "")
 			})
 
 			It("should reject zone when provided for managed infrastructure", func() {
@@ -176,7 +204,7 @@ spec:`)
 		When("zone validation with unmanaged infrastructure", func() {
 			When("worker with no zones configured", func() {
 				BeforeEach(func() {
-					createShootManifest("", nil, true)
+					createShootManifest("", nil, true, "")
 				})
 
 				It("should reject zone when worker has no zones configured", func() {
@@ -195,7 +223,7 @@ spec:`)
 
 			When("worker with single zone configured", func() {
 				BeforeEach(func() {
-					createShootManifest("", []string{"zone-1"}, true)
+					createShootManifest("", []string{"zone-1"}, true, "")
 				})
 
 				It("should auto-apply the single zone when not provided", func() {
@@ -221,7 +249,7 @@ spec:`)
 
 			When("worker with multiple zones configured", func() {
 				BeforeEach(func() {
-					createShootManifest("", []string{"zone-1", "zone-2", "zone-3"}, true)
+					createShootManifest("", []string{"zone-1", "zone-2", "zone-3"}, true, "")
 				})
 
 				It("should require zone flag when not provided", func() {

@@ -41,9 +41,13 @@ func NewCommand(globalOpts *cmd.Options) *cobra.Command {
 		Use:   "discover",
 		Short: "Conveniently download Gardener configuration resources from an existing garden cluster",
 		Long:  "Conveniently download Gardener configuration resources from an existing garden cluster (CloudProfile, ControllerRegistrations, ControllerDeployments, etc.)",
+		Args:  cobra.NoArgs,
 
-		Example: `# Download the configuration
-gardenadm discover <path-to-shoot-manifest>`,
+		Example: `# Download the configuration for a new Shoot
+gardenadm discover --shoot-manifest <path-to-shoot-manifest>
+
+# Download the configuration for an existing Shoot
+gardenadm discover --shoot-name <name> --shoot-namespace <namespace>`,
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := opts.ParseArgs(args); err != nil {
@@ -79,14 +83,14 @@ var (
 func run(ctx context.Context, opts *Options) error {
 	fs := NewAferoFs()
 
-	shoot, err := readShoot(fs, opts.ShootManifest)
-	if err != nil {
-		return fmt.Errorf("failed reading shoot manifest from %q: %w", opts.ShootManifest, err)
-	}
-
 	clientSet, err := NewClientSetFromFile(opts.Kubeconfig, kubernetes.GardenScheme)
 	if err != nil {
 		return fmt.Errorf("failed creating client: %w", err)
+	}
+
+	shoot, err := loadShoot(ctx, clientSet.Client(), fs, opts)
+	if err != nil {
+		return err
 	}
 
 	binding, err := secretBindingForShoot(ctx, clientSet.Client(), shoot)
@@ -134,19 +138,22 @@ func run(ctx context.Context, opts *Options) error {
 		return getAndExportObject(ctx, clientSet.Client(), fs, opts, "Project", project)
 	})
 
-	backupBucket, backupEntry, err := backupResourcesForShoot(ctx, clientSet.Client(), shoot)
-	if err != nil {
-		return fmt.Errorf("failed reading backup resources for shoot: %w", err)
-	}
-	if backupBucket != nil {
-		taskFns = append(taskFns, func(ctx context.Context) error {
-			return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupBucket", backupBucket)
-		})
-	}
-	if backupEntry != nil {
-		taskFns = append(taskFns, func(ctx context.Context) error {
-			return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupEntry", backupEntry)
-		})
+	existingShoot := opts.ShootName != "" && opts.ShootNamespace != ""
+	if existingShoot {
+		backupBucket, backupEntry, err := backupResourcesForShoot(ctx, clientSet.Client(), shoot)
+		if err != nil {
+			return fmt.Errorf("failed reading backup resources for shoot: %w", err)
+		}
+		if backupBucket != nil {
+			taskFns = append(taskFns, func(ctx context.Context) error {
+				return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupBucket", backupBucket)
+			})
+		}
+		if backupEntry != nil {
+			taskFns = append(taskFns, func(ctx context.Context) error {
+				return getAndExportObject(ctx, clientSet.Client(), fs, opts, "BackupEntry", backupEntry)
+			})
+		}
 	}
 
 	extensions, err := requiredExtensions(ctx, clientSet.Client(), shoot, opts.ManagedInfrastructure)
@@ -170,12 +177,32 @@ func run(ctx context.Context, opts *Options) error {
 	return flow.Parallel(taskFns...)(ctx)
 }
 
+// loadShoot returns the Shoot either from the local manifest file (for a new Shoot) or from the garden cluster
+// (for an existing Shoot, when --shoot-name and --shoot-namespace are set).
+func loadShoot(ctx context.Context, c client.Client, fs afero.Afero, opts *Options) (*gardencorev1beta1.Shoot, error) {
+	if len(opts.ShootName) > 0 && len(opts.ShootNamespace) > 0 {
+		shoot := &gardencorev1beta1.Shoot{ObjectMeta: metav1.ObjectMeta{Name: opts.ShootName, Namespace: opts.ShootNamespace}}
+		if err := c.Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
+			return nil, fmt.Errorf("failed getting Shoot %s from garden cluster: %w", client.ObjectKeyFromObject(shoot), err)
+		}
+
+		return shoot, nil
+	}
+
+	shoot, err := readShootManifest(fs, opts.ShootManifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading shoot manifest from %q: %w", opts.ShootManifest, err)
+	}
+
+	return shoot, nil
+}
+
 var (
 	versions = schema.GroupVersions([]schema.GroupVersion{gardencorev1.SchemeGroupVersion, gardencorev1beta1.SchemeGroupVersion})
 	decoder  = kubernetes.GardenCodec.CodecForVersions(kubernetes.GardenSerializer, kubernetes.GardenSerializer, versions, versions)
 )
 
-func readShoot(fs afero.Afero, manifestPath string) (*gardencorev1beta1.Shoot, error) {
+func readShootManifest(fs afero.Afero, manifestPath string) (*gardencorev1beta1.Shoot, error) {
 	shootManifest, err := fs.ReadFile(manifestPath)
 	if err != nil {
 		return nil, err
@@ -279,7 +306,10 @@ func getAndExportObject(ctx context.Context, c client.Client, fs afero.Afero, op
 		opts.Log.V(1).Info("Object not found in garden cluster", "kind", kind, "obj", client.ObjectKeyFromObject(obj))
 		return nil
 	}
+	return exportObject(fs, opts, kind, obj)
+}
 
+func exportObject(fs afero.Afero, opts *Options, kind string, obj client.Object) error {
 	resetObject(obj)
 
 	objYAML, err := kubernetesutils.Serialize(obj, kubernetes.GardenScheme)
