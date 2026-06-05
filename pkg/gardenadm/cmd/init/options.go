@@ -70,6 +70,15 @@ func (o *Options) validateFlagCombinations() error {
 			return fmt.Errorf("--recover requires a ShootState resource in the config directory, but none was found")
 		}
 
+		// .status.uid is required because it determines the BackupBucket and BackupEntry names. If it is empty,
+		// `gardenadm init` would generate a fresh UID and the etcd snapshot in the existing bucket would be
+		// orphaned, silently turning the "recover" into a fresh control plane bring-up.
+		if resources.Shoot == nil || resources.Shoot.Status.UID == "" {
+			return fmt.Errorf("--recover requires the Shoot manifest in the config directory to have .status.uid set " +
+				"(this is the original Shoot UID and is needed to locate the existing BackupBucket and BackupEntry); " +
+				"use 'gardenadm discover --shoot-name <name> --shoot-namespace <namespace>' to export the Shoot from the garden cluster")
+		}
+
 		if o.PriorNodeName == "" {
 			return fmt.Errorf("--recover must be combined with --prior-node-name")
 		}
