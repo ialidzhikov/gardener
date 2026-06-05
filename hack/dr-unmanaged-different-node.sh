@@ -111,15 +111,14 @@ docker restart gind-apiserver-lb
 
 echo "> Copying Shoot manifest and virtual garden kubeconfig to the gind-machine-3 container..."
 docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-3:/virtual-garden-kubeconfig
-docker cp ./dev-setup/gardenadm/resources/base/shoot.yaml gind-machine-3:/shoot.yaml
 
 echo "> Downloading Gardener configuration resources for the Shoot..."
-docker exec -ti gind-machine-3 gardenadm discover /shoot.yaml --kubeconfig /virtual-garden-kubeconfig
-docker exec -ti gind-machine-3 sh -c 'find . -maxdepth 1 -type f | grep backup | xargs -I {} mv {} /gardenadm/resources/'
-docker exec -ti gind-machine-3 sh -c 'find . -maxdepth 1 -type f | grep shootstate | xargs -I {} mv {} /gardenadm/resources/'
+docker exec -ti gind-machine-3 mkdir /gardenadm/discover-output
+docker exec -ti gind-machine-3 gardenadm discover --shoot-name root --shoot-namespace garden --kubeconfig /virtual-garden-kubeconfig -d /gardenadm/discover-output
+docker exec -ti gind-machine-3 rm /gardenadm/discover-output/lease-self-hosted-shoot-root.yaml
 
 echo "> Restoring the control plane Node..."
-docker exec -ti gind-machine-3 gardenadm init -d /gardenadm/resources --recover --use-bootstrap-etcd --prior-node-name=gind-machine-0
+docker exec -ti gind-machine-3 gardenadm init -d /gardenadm/discover-output --recover --use-bootstrap-etcd --prior-node-name=gind-machine-0
 
 # For the purpose of the local setup, we delete the Master Lease records from ETCD post-restore to speed up the development process.
 # Master leases are used for constructing an `EndpointSlice` for kuba-apiserver instances. During the restoration, the IP of the
@@ -136,3 +135,6 @@ echo "> Installing ETCDCTL CLI tool"
 docker exec -ti gind-machine-3 sh -c "apt-get update && apt-get install etcd-client"
 echo "> Deleting Master Leases from ETCD"
 docker exec -ti gind-machine-3 sh -c "ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/var/lib/static-pods/kube-apiserver/ca-etcd/bundle.crt --cert=/var/lib/static-pods/kube-apiserver/etcd-client/tls.crt --key=/var/lib/static-pods/kube-apiserver/etcd-client/tls.key del --prefix /registry/masterleases/"
+
+echo "> Verifying the control plane Node restoration..."
+./hack/dr-verify-restore.sh

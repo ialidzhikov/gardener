@@ -52,5 +52,11 @@ func (o *CommonOptions) Complete() error {
 func (o *CommonOptions) AddFlags(fs *pflag.FlagSet) {
 	o.ManifestOptions.AddFlags(fs)
 	fs.StringVarP(&o.Kubeconfig, "kubeconfig", "k", "", "Path to the kubeconfig file pointing to the garden cluster")
+	fs.StringVar(&o.ShootManifest, "shoot-manifest", "", "Path to a Shoot manifest file describing a new Shoot to discover resources for. "+
+		"Mutually exclusive with --shoot-name/--shoot-namespace.")
+	fs.StringVar(&o.ShootName, "shoot-name", "", "Name of an existing Shoot in the garden cluster to discover resources for. "+
+		"Mutually exclusive with --shoot-manifest. Must be set together with --shoot-namespace.")
+	fs.StringVar(&o.ShootNamespace, "shoot-namespace", "", "Namespace of an existing Shoot in the garden cluster to discover resources for. "+
+		"Mutually exclusive with --shoot-manifest. Must be set together with --shoot-name.")
 	fs.BoolVar(&o.ManagedInfrastructure, "managed-infrastructure", true, "Indicates whether Gardener will manage the shoot's infrastructure (network, domains, machines, etc.). Set this to true if using 'gardenadm bootstrap' for bootstrapping the shoot cluster. Set this to false if managing the infrastructure outside of Gardener.")
 }
