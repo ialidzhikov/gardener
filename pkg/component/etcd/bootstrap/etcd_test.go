@@ -89,10 +89,11 @@ var _ = Describe("Etcd", func() {
 			etcd = New(c, namespace, sm, Values{
 				Image: image,
 				Role:  "main",
-				Initialize: &InitializeConfig{
-					StorageProvider: "Local",
-					StoreContainer:  "container",
-					StorePrefix:     "prefix",
+				BackupRestore: &EtcdBackupRestoreConfig{
+					EtcdbrctlImage:        "europe-docker.pkg.dev/gardener-project/public/gardener/etcdbrctl:v0.40.0",
+					StoreContainer:        "my-bucket",
+					StorePrefix:           "prefix",
+					BackupBucketsHostPath: "/etc/gardener/local-backupbuckets",
 				},
 			})
 
