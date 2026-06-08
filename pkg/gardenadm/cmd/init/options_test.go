@@ -151,8 +151,17 @@ spec:`)
 			It("should accept --recover when all prerequisites are met", func() {
 				options.Recover = true
 				options.PriorNodeName = "node-01"
+				options.BackupDataPath = "/some/path/to/backup"
 
 				Expect(options.Validate()).To(Succeed())
+			})
+
+			It("should reject --recover without --backup-data-path", func() {
+				options.Recover = true
+				options.PriorNodeName = "node-01"
+				options.BackupDataPath = ""
+
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover must be combined with --backup-data-path")))
 			})
 		})
 
@@ -162,6 +171,15 @@ spec:`)
 				options.PriorNodeName = "node-01"
 
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--prior-node-name must be combined with --recover")))
+			})
+		})
+
+		When("backup-data-path flag validation", func() {
+			It("should reject --backup-data-path without --recover", func() {
+				options.Recover = false
+				options.BackupDataPath = "/some/path/to/backup"
+
+				Expect(options.Validate()).To(MatchError(ContainSubstring("--backup-data-path must be combined with --recover")))
 			})
 		})
 

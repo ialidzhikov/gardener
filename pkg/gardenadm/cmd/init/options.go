@@ -41,6 +41,10 @@ type Options struct {
 
 	// PriorNodeName defines the name of the node that is going to be replaced. Must be used alongside `--recover` to take effect.
 	PriorNodeName string
+	// BackupDataPath is the local path on the node where the etcd backup data is stored.
+	// When set, the bootstrap etcd will be initialized from this path using the Local storage provider.
+	// The path is expected to have the structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2
+	BackupDataPath string
 }
 
 // ParseArgs parses the arguments to the options.
@@ -88,6 +92,14 @@ func (o *Options) validateFlagCombinations() error {
 
 	if o.PriorNodeName != "" && !o.Recover {
 		return fmt.Errorf("--prior-node-name must be combined with --recover")
+	}
+
+	if o.BackupDataPath != "" && !o.Recover {
+		return fmt.Errorf("--backup-data-path must be combined with --recover")
+	}
+
+	if o.Recover && o.BackupDataPath == "" {
+		return fmt.Errorf("--recover must be combined with --backup-data-path")
 	}
 
 	return nil

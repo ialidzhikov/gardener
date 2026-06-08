@@ -77,7 +77,7 @@ func runRecover(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed first recovery phase: %w", err)
 	}
 
-	b, err := botanist.NewGardenadmBotanistFromManifests(ctx, opts.Log, nil, opts.ConfigDir, true)
+	b, err := gardenadmbotanist.NewGardenadmBotanistFromManifests(ctx, opts.Log, nil, opts.ConfigDir, true)
 	if err != nil {
 		return fmt.Errorf("failed preparing recover cleanup: %w", err)
 	}
@@ -97,7 +97,7 @@ func runRecover(ctx context.Context, opts *Options) error {
 	return runInit(ctx, &phaseOpts)
 }
 
-func prepareRecoverSecondPhase(ctx context.Context, b *botanist.GardenadmBotanist, opts *Options) error {
+func prepareRecoverSecondPhase(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
 	b.Logger.Info("Preparing second recovery phase cleanup")
 
 	managedResourceList := &resourcesv1alpha1.ManagedResourceList{}
@@ -430,6 +430,8 @@ func bootstrapControlPlane(ctx context.Context, opts *Options) (*gardenadmbotani
 	if opts.Zone != "" {
 		b.Zone = new(opts.Zone)
 	}
+
+	b.BackupDataPath = opts.BackupDataPath
 
 	kubeconfigFileExists, err := b.FS.Exists(botanist.PathKubeconfig)
 	if err != nil {

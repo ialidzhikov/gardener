@@ -65,4 +65,8 @@ type Operation struct {
 
 	// ControlPlaneWildcardCert is a wildcard TLS certificate which is issued for the seed's ingress domain.
 	ControlPlaneWildcardCert *corev1.Secret
+
+	// BackupDataPath is the local path on the node where the etcd backup data is stored.
+	// When set, the bootstrap etcd will be initialized from this path using the Local storage provider.
+	BackupDataPath string
 }
