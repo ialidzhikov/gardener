@@ -39,6 +39,10 @@ type Options struct {
 
 	// PriorNodeName defines the name of the node that is going to be replaced. Must be used alongside `--recover` to take effect.
 	PriorNodeName string
+	// BackupDataPath is the local path on the node where the etcd backup data is stored.
+	// When set, the bootstrap etcd will be initialized from this path using the Local storage provider.
+	// The path is expected to have the structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2
+	BackupDataPath string
 }
 
 // ParseArgs parses the arguments to the options.
@@ -86,6 +90,14 @@ func (o *Options) validateFlagCombinations() error {
 
 	if o.PriorNodeName != "" && !o.Recover {
 		return fmt.Errorf("--prior-node-name must be combined with --recover")
+	}
+
+	if o.BackupDataPath != "" && !o.Recover {
+		return fmt.Errorf("--backup-data-path must be combined with --recover")
+	}
+
+	if o.Recover && o.BackupDataPath == "" {
+		return fmt.Errorf("--recover must be combined with --backup-data-path")
 	}
 
 	return nil
@@ -136,4 +148,5 @@ func (o *Options) addFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&o.Zone, "zone", "z", "", "Availability zone for the new node. Required if the control plane worker pool in the Shoot has multiple zones configured. Optional if exactly one zone is configured (applied automatically). Must not be set if no zones are configured.")
 	fs.BoolVar(&o.Recover, "recover", false, "If set, run control plane recovery flow.")
 	fs.StringVar(&o.PriorNodeName, "prior-node-name", "", "The name of the prior control plane node. Required in order to cleanup stale resources. Must be used alongside `--recover` to take effect.")
+	fs.StringVar(&o.BackupDataPath, "backup-data-path", "", "Local path on the node where the etcd backup data is stored. Expected structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2")
 }

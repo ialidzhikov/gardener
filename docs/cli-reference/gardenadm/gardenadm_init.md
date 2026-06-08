@@ -23,6 +23,7 @@ gardenadm init --config-dir /path/to/manifests --zone zone-a
 ### Options
 
 ```
+      --backup-data-path string     Local path on the node where the etcd backup data is stored. Expected structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2
   -d, --config-dir string           Path to a directory containing the Gardener configuration files for the init command, i.e., files containing resources like CloudProfile, Shoot, etc. The files must be in YAML/JSON and have .{yaml,yml,json} file extensions to be considered.
   -h, --help                        help for init
       --prior-node-name --recover   The name of the prior control plane node. Required in order to cleanup stale resources. Must be used alongside --recover to take effect.
