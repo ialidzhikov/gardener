@@ -99,8 +99,6 @@ func runRecover(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed preparing second recovery phase: %w", err)
 	}
 
-	phaseOpts.UseBootstrapEtcd = true
-
 	return runInit(ctx, &phaseOpts)
 }
 
