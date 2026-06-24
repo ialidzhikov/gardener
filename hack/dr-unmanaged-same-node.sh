@@ -24,30 +24,14 @@ function triggerEtcdDeltaSnapshot() {
     exit 1
   fi
 
-  kubectl -n kube-system port-forward "pod/${ETCD_MAIN_POD}" 8080:8080 >/dev/null &
-  PF_PID=$!
-  trap "kill ${PF_PID} 2>/dev/null || true" EXIT
-
-  echo "> Waiting for the port-forward to become ready..."
-  for i in {1..15}; do
-    if curl -sk -o /dev/null "https://localhost:8080/healthz"; then
-      break
-    fi
-    sleep 1
-  done
-
   echo "> Sending HTTP request for a delta snapshot..."
-  curl -sk --fail "https://localhost:8080/snapshot/delta"
-
-  kill ${PF_PID} 2>/dev/null || true
-  trap - EXIT
+  docker exec -ti gind-machine-0 curl -sk --fail "https://localhost:8080/snapshot/delta"
 }
 
 echo "> Setting up gind (machine containers only)..."
 make gind-up SCENARIO=machines
 
 echo "> Initializing control plane Node..."
-# TODO: Can we use the "--use-bootstrap-etcd" flag?
 docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/resources
 
 echo "> Joining gind-machine-1 worker Node..."
@@ -109,7 +93,7 @@ docker rm --volumes gind-machine-0
 echo "> Setting up gind (recreating the gind-machine-0 container)..."
 make gind-up SCENARIO=machines
 
-echo "> Copying Shoot manifest and virtual garden kubeconfig to the gind-machine-0 container..."
+echo "> Copying virtual garden kubeconfig to the gind-machine-0 container..."
 docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-0:/virtual-garden-kubeconfig
 
 echo "> Downloading Gardener configuration resources for the Shoot..."
@@ -117,11 +101,13 @@ docker exec -ti gind-machine-0 mkdir /gardenadm/discover-output
 docker exec -ti gind-machine-0 gardenadm discover --shoot-name root --shoot-namespace garden --kubeconfig /virtual-garden-kubeconfig -d /gardenadm/discover-output
 docker exec -ti gind-machine-0 rm /gardenadm/discover-output/lease-self-hosted-shoot-root.yaml
 
-echo "> Restoring the control plane Node..."
-# TODO: Check why GRM gets deployed to worker Nodes
+echo "> Preparing the etcd backup on the Node..."
 backup_data_path=$(find dev/local-backupbuckets | grep v2$ | grep -v garden)
 docker cp dev/local-backupbuckets gind-machine-0:/local-backupbuckets
-docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/discover-output --recover --prior-node-name=gind-machine-0 --use-bootstrap-etcd --backup-data-path "/${backup_data_path#dev/}"
+
+echo "> Restoring the control plane Node..."
+# TODO: Check why GRM gets deployed to worker Nodes
+docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/discover-output --recover --prior-node-name=gind-machine-0 --backup-data-path "/${backup_data_path#dev/}"
 
 echo "> Verifying the control plane Node restoration..."
 ./hack/dr-verify-restore.sh
