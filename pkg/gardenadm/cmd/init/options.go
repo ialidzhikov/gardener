@@ -80,7 +80,7 @@ func (o *Options) validateFlagCombinations() error {
 		if resources.Shoot == nil || resources.Shoot.Status.UID == "" {
 			return fmt.Errorf("--recover requires the Shoot manifest in the config directory to have .status.uid set " +
 				"(this is the original Shoot UID and is needed to locate the existing BackupBucket and BackupEntry); " +
-				"use 'gardenadm discover --shoot-name <name> --shoot-namespace <namespace>' to export the Shoot from the garden cluster")
+				"use 'gardenadm discover existing --name <name> --namespace <namespace>' to export the Shoot from the garden cluster")
 		}
 
 		if o.PriorNodeName == "" {

@@ -16,7 +16,7 @@ docker cp ./dev-setup/kubeconfigs/virtual-garden/kubeconfig gind-machine-0:/virt
 
 echo "> Downloading Gardener configuration resources for the Shoot..."
 docker exec -ti gind-machine-0 mkdir /gardenadm/discover-output
-docker exec -ti gind-machine-0 gardenadm discover --shoot-name root --shoot-namespace garden --kubeconfig /virtual-garden-kubeconfig -d /gardenadm/discover-output
+docker exec -ti gind-machine-0 gardenadm discover existing --name root --namespace garden --kubeconfig /virtual-garden-kubeconfig -d /gardenadm/discover-output
 docker exec -ti gind-machine-0 rm /gardenadm/discover-output/lease-self-hosted-shoot-root.yaml
 
 echo "> Preparing the etcd backup on the Node..."
