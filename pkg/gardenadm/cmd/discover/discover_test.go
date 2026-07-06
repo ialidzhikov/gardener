@@ -5,8 +5,6 @@
 package discover_test
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -26,124 +24,6 @@ var _ = Describe("Discover", func() {
 
 			Expect(subs).To(HaveKey("new"))
 			Expect(subs).To(HaveKey("existing"))
-		})
-
-		Context("for new Shoot", func() {
-			It("should return the expected output", func() {
-				Expect(command.Flags().Set("shoot-manifest", shootManifestPath)).To(Succeed())
-				Expect(command.Flags().Set("kubeconfig", "some-path-to-kubeconfig")).To(Succeed())
-				Expect(command.Flags().Set("config-dir", ".")).To(Succeed())
-				Expect(command.RunE(command, nil)).To(Succeed())
-
-				expectCommonExports()
-			})
-		})
-
-		Context("for already existing Shoot", func() {
-			var (
-				backupBucketSecret          *corev1.Secret
-				backupBucketGeneratedSecret *corev1.Secret
-				backupBucket                *gardencorev1beta1.BackupBucket
-				backupEntry                 *gardencorev1beta1.BackupEntry
-			)
-
-			BeforeEach(func() {
-				backupBucketSecret = &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-backup-secret",
-						Namespace: "garden",
-					},
-				}
-				backupBucketGeneratedSecret = &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-backup-bucket-generated-secret",
-						Namespace: "garden",
-					},
-				}
-				backupBucket = &gardencorev1beta1.BackupBucket{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-backup-bucket",
-					},
-					Spec: gardencorev1beta1.BackupBucketSpec{
-						CredentialsRef: &corev1.ObjectReference{
-							APIVersion: "v1",
-							Kind:       "Secret",
-							Name:       backupBucketSecret.Name,
-							Namespace:  backupBucketSecret.Namespace,
-						},
-						ShootRef: &corev1.ObjectReference{
-							APIVersion: "core.gardener.cloud/v1beta1",
-							Kind:       "Shoot",
-							Name:       shoot.Name,
-							Namespace:  shoot.Namespace,
-						},
-					},
-				}
-				backupEntry = &gardencorev1beta1.BackupEntry{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-backup-entry",
-						Namespace: namespaceName,
-					},
-					Spec: gardencorev1beta1.BackupEntrySpec{
-						BucketName: backupBucket.Name,
-						ShootRef: &corev1.ObjectReference{
-							APIVersion: "core.gardener.cloud/v1beta1",
-							Kind:       "Shoot",
-							Name:       shoot.Name,
-							Namespace:  shoot.Namespace,
-						},
-					},
-				}
-			})
-
-			It("should fail when the shoot does not exists", func() {
-				Expect(command.Flags().Set("shoot-name", shoot.Name)).To(Succeed())
-				Expect(command.Flags().Set("shoot-namespace", shoot.Namespace)).To(Succeed())
-				Expect(command.Flags().Set("kubeconfig", "some-path-to-kubeconfig")).To(Succeed())
-				Expect(command.Flags().Set("config-dir", ".")).To(Succeed())
-				Expect(command.RunE(command, nil)).To(MatchError(ContainSubstring("failed getting Shoot garden-test-project/test-shoot from garden cluster")))
-
-			})
-
-			It("should return the expected output when the shoot exists", func() {
-				Expect(fakeClient.Create(ctx, shoot)).To(Succeed())
-				Expect(fakeClient.Create(ctx, backupBucketSecret)).To(Succeed())
-				Expect(fakeClient.Create(ctx, backupBucket)).To(Succeed())
-				Expect(fakeClient.Create(ctx, backupBucketGeneratedSecret)).To(Succeed())
-				patch := client.MergeFrom(backupBucket.DeepCopy())
-				backupBucket.Status.GeneratedSecretRef = &corev1.SecretReference{
-					Name:      backupBucketGeneratedSecret.Name,
-					Namespace: backupBucketGeneratedSecret.Namespace,
-				}
-				Expect(fakeClient.Status().Patch(ctx, backupBucket, patch)).To(Succeed())
-				Expect(fakeClient.Create(ctx, backupEntry)).To(Succeed())
-
-				Expect(command.Flags().Set("shoot-name", shoot.Name)).To(Succeed())
-				Expect(command.Flags().Set("shoot-namespace", shoot.Namespace)).To(Succeed())
-				Expect(command.Flags().Set("kubeconfig", "some-path-to-kubeconfig")).To(Succeed())
-				Expect(command.Flags().Set("config-dir", ".")).To(Succeed())
-				Expect(command.RunE(command, nil)).To(Succeed())
-
-				expectCommonExports()
-
-				Eventually(func() string { return string(stdOut.Contents()) }).Should(SatisfyAll(
-					ContainSubstring("Exported Secret/"+backupBucketSecret.Name),
-					ContainSubstring("Exported Secret/"+backupBucketGeneratedSecret.Name),
-					ContainSubstring("Exported BackupBucket/"+backupBucket.Name),
-					ContainSubstring("Exported BackupEntry/"+backupEntry.Name),
-				))
-
-				for _, path := range []string{
-					fmt.Sprintf("secret-%s.yaml", backupBucketSecret.Name),
-					fmt.Sprintf("secret-%s.yaml", backupBucketGeneratedSecret.Name),
-					fmt.Sprintf("backupbucket-%s.yaml", backupBucket.Name),
-					fmt.Sprintf("backupentry-%s.yaml", backupEntry.Name),
-				} {
-					exists, err := fs.Exists(path)
-					Expect(err).NotTo(HaveOccurred(), "for path "+path)
-					Expect(exists).To(BeTrue(), "for path "+path)
-				}
-			})
 		})
 	})
 })

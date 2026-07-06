@@ -32,7 +32,7 @@ var _ = Describe("Options", func() {
 	})
 
 	Describe("#Validate", func() {
-		It("should pass for valid options (new Shoot via manifest)", func() {
+		It("should pass for valid options", func() {
 			options.Kubeconfig = "some-path-to-kubeconfig"
 			options.Manifest = "some-path-to-shoot-manifest"
 			options.ConfigDir = "some-path-to-config-dir"
@@ -51,7 +51,7 @@ var _ = Describe("Options", func() {
 			options.Manifest = "some-path-to-shoot-manifest"
 			options.ConfigDir = "some-path-to-config-dir"
 
-			Expect(options.Validate()).To(Succeed())
+			Expect(options.Validate()).To(MatchError(ContainSubstring("must provide a path to a garden cluster kubeconfig")))
 		})
 
 		It("should default the config dir from the manifest path during validation", func() {
@@ -61,31 +61,10 @@ var _ = Describe("Options", func() {
 			Expect(options.Validate()).To(Succeed())
 			Expect(options.ConfigDir).To(Equal("foo/bar"))
 		})
-
-		It("should fail because config dir path is not set (existing Shoot)", func() {
-			options.Kubeconfig = "some-path-to-kubeconfig"
-			options.ShootName = "test-shoot"
-			options.ShootNamespace = "garden-test"
-
-			Expect(options.Validate()).To(MatchError(ContainSubstring("must provide a path to a config directory")))
-		})
 	})
 
 	Describe("#Complete", func() {
 		It("should not change the config dir", func() {
-			options.ConfigDir = "baz"
-			Expect(options.Complete()).To(Succeed())
-			Expect(options.ConfigDir).To(Equal("baz"))
-		})
-
-		It("should default the config dir from the shoot manifest path", func() {
-			options.ShootManifest = "foo/bar/baz.yaml"
-			Expect(options.Complete()).To(Succeed())
-			Expect(options.ConfigDir).To(Equal("foo/bar"))
-		})
-
-		It("should not default the config dir when explicitly specified", func() {
-			options.ShootManifest = "foo/bar/baz.yaml"
 			options.ConfigDir = "baz"
 			Expect(options.Complete()).To(Succeed())
 			Expect(options.ConfigDir).To(Equal("baz"))
