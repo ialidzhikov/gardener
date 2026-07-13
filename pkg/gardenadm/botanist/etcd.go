@@ -18,10 +18,13 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	bootstrapetcd "github.com/gardener/gardener/pkg/component/etcd/bootstrap"
+	corebackupbucket "github.com/gardener/gardener/pkg/component/garden/backupbucket"
+	"github.com/gardener/gardener/pkg/controllerutils"
 	backupbucketcontroller "github.com/gardener/gardener/pkg/gardenlet/controller/backupbucket"
 	backupentrycontroller "github.com/gardener/gardener/pkg/gardenlet/controller/backupentry"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
@@ -30,7 +33,7 @@ import (
 
 // ReconcileBackupBucket reconciles the core.gardener.cloud/v1beta1.BackupBucket resource for the shoot cluster.
 func (b *GardenadmBotanist) ReconcileBackupBucket(ctx context.Context) error {
-	backupBucket, err := b.reconcileCoreBackupBucketResource(ctx)
+	backupBucket, err := b.deployCoreBackupBucketResource(ctx)
 	if err != nil {
 		return fmt.Errorf("failed reconciling core.gardener.cloud/v1beta1.BackupBucket resource: %w", err)
 	}
@@ -52,17 +55,44 @@ func (b *GardenadmBotanist) ReconcileBackupBucket(ctx context.Context) error {
 	})
 }
 
-func (b *GardenadmBotanist) reconcileCoreBackupBucketResource(ctx context.Context) (*gardencorev1beta1.BackupBucket, error) {
-	if err := b.Shoot.Components.BackupBucket.Deploy(ctx); err != nil {
+func (b *GardenadmBotanist) deployCoreBackupBucketResource(ctx context.Context) (*gardencorev1beta1.BackupBucket, error) {
+	if imported := b.Resources.BackupBucket; imported != nil {
+		return b.importCoreBackupBucketResource(ctx, imported)
+	}
+
+	component := corebackupbucket.New(b.Logger, b.GardenClient, &corebackupbucket.Values{
+		Name:          string(b.Shoot.GetInfo().Status.UID),
+		Config:        v1beta1helper.GetBackupConfigForShoot(b.Shoot.GetInfo(), nil),
+		DefaultRegion: b.Shoot.GetInfo().Spec.Region,
+		Clock:         b.Clock,
+		Shoot:         b.Shoot.GetInfo(),
+	}, corebackupbucket.DefaultInterval, corebackupbucket.DefaultTimeout)
+
+	if err := component.Deploy(ctx); err != nil {
 		return nil, fmt.Errorf("failed reconciling core.gardener.cloud/v1beta1.BackupBucket resource: %w", err)
 	}
 
 	return b.Shoot.Components.BackupBucket.Get(ctx)
 }
 
+func (b *GardenadmBotanist) importCoreBackupBucketResource(ctx context.Context, imported *gardencorev1beta1.BackupBucket) (*gardencorev1beta1.BackupBucket, error) {
+	backupBucket := &gardencorev1beta1.BackupBucket{ObjectMeta: metav1.ObjectMeta{Name: imported.Name}}
+	if _, err := controllerutils.CreateOrGetAndMergePatch(ctx, b.GardenClient, backupBucket, func() error {
+		backupBucket.Labels = imported.Labels
+		backupBucket.Annotations = imported.Annotations
+		backupBucket.Spec = imported.Spec
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed creating or patching imported core.gardener.cloud/v1beta1.BackupBucket resource: %w", err)
+	}
+
+	return backupBucket, nil
+}
+
 // ReconcileBackupEntry reconciles the core.gardener.cloud/v1beta1.BackupEntry resource for the shoot cluster.
 func (b *GardenadmBotanist) ReconcileBackupEntry(ctx context.Context) error {
-	backupEntry, err := b.reconcileCoreBackupEntryResource(ctx)
+	backupEntry, err := b.deployCoreBackupEntryResource(ctx)
 	if err != nil {
 		return fmt.Errorf("failed reconciling core.gardener.cloud/v1beta1.BackupEntry resource: %w", err)
 	}
@@ -84,12 +114,31 @@ func (b *GardenadmBotanist) ReconcileBackupEntry(ctx context.Context) error {
 	})
 }
 
-func (b *GardenadmBotanist) reconcileCoreBackupEntryResource(ctx context.Context) (*gardencorev1beta1.BackupEntry, error) {
+func (b *GardenadmBotanist) deployCoreBackupEntryResource(ctx context.Context) (*gardencorev1beta1.BackupEntry, error) {
+	if imported := b.Resources.BackupEntry; imported != nil {
+		return b.importCoreBackupEntryResource(ctx, imported)
+	}
+
 	if err := b.Shoot.Components.BackupEntry.Deploy(ctx); err != nil {
 		return nil, fmt.Errorf("failed reconciling core.gardener.cloud/v1beta1.BackupEntry resource: %w", err)
 	}
 
 	return b.Shoot.Components.BackupEntry.Get(ctx)
+}
+
+func (b *GardenadmBotanist) importCoreBackupEntryResource(ctx context.Context, imported *gardencorev1beta1.BackupEntry) (*gardencorev1beta1.BackupEntry, error) {
+	backupEntry := &gardencorev1beta1.BackupEntry{ObjectMeta: metav1.ObjectMeta{Name: imported.Name, Namespace: imported.Namespace}}
+	if _, err := controllerutils.CreateOrGetAndMergePatch(ctx, b.GardenClient, backupEntry, func() error {
+		backupEntry.Labels = imported.Labels
+		backupEntry.Annotations = imported.Annotations
+		backupEntry.Spec = imported.Spec
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed creating or patching imported core.gardener.cloud/v1beta1.BackupEntry resource: %w", err)
+	}
+
+	return backupEntry, nil
 }
 
 // Some reconcilers do not wait for some conditions to be met. Instead, they stop their reconciliation flow and watch
