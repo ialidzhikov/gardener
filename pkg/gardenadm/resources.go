@@ -60,6 +60,8 @@ type Resources struct {
 	SecretBinding           *gardencorev1beta1.SecretBinding
 	CredentialsBinding      *securityv1alpha1.CredentialsBinding
 	WorkloadIdentities      []*securityv1alpha1.WorkloadIdentity
+	BackupBucket            *gardencorev1beta1.BackupBucket
+	BackupEntry             *gardencorev1beta1.BackupEntry
 }
 
 // ReadManifests reads Kubernetes and Gardener manifests in YAML or JSON format.
@@ -147,6 +149,17 @@ func ReadManifests(log logr.Logger, fsys fs.FS) (Resources, error) {
 				resources.CredentialsBinding = typedObj
 			case *securityv1alpha1.WorkloadIdentity:
 				resources.WorkloadIdentities = append(resources.WorkloadIdentities, typedObj)
+
+			case *gardencorev1beta1.BackupBucket:
+				if resources.BackupBucket != nil {
+					return fmt.Errorf("found more than one *gardencorev1beta1.BackupBucket resource, but only one is allowed")
+				}
+				resources.BackupBucket = typedObj
+			case *gardencorev1beta1.BackupEntry:
+				if resources.BackupEntry != nil {
+					return fmt.Errorf("found more than one *gardencorev1beta1.BackupEntry resource, but only one is allowed")
+				}
+				resources.BackupEntry = typedObj
 			}
 		}
 
