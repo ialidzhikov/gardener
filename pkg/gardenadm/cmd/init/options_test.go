@@ -112,6 +112,31 @@ spec:`)
 		Expect(os.WriteFile(filepath.Join(configDir, "shoot.yaml"), []byte(shootManifest.String()), 0644)).To(Succeed())
 	}
 
+	createBackupBucketManifest := func(name string) {
+		manifest := `apiVersion: core.gardener.cloud/v1beta1
+kind: BackupBucket
+metadata:
+  name: ` + name + `
+spec:
+  provider:
+    type: local
+    region: local
+`
+		Expect(os.WriteFile(filepath.Join(configDir, "backupbucket.yaml"), []byte(manifest), 0644)).To(Succeed())
+	}
+
+	createBackupEntryManifest := func(name, bucketName string) {
+		manifest := `apiVersion: core.gardener.cloud/v1beta1
+kind: BackupEntry
+metadata:
+  name: ` + name + `
+  namespace: garden-test
+spec:
+  bucketName: ` + bucketName + `
+`
+		Expect(os.WriteFile(filepath.Join(configDir, "backupentry.yaml"), []byte(manifest), 0644)).To(Succeed())
+	}
+
 	Describe("#ParseArgs", func() {
 		It("should return nil", func() {
 			Expect(options.ParseArgs(nil)).To(Succeed())
@@ -119,49 +144,97 @@ spec:`)
 	})
 
 	Describe("#Validate", func() {
+		const statusUID = "abcd-1234-uid"
+		const backupBucketName = statusUID
+		const backupEntryName = "kube-system--" + statusUID
+
 		When("recover flag validation", func() {
 			BeforeEach(func() {
-				createShootManifest("test-credentials", nil, true, "abcd-1234-uid")
+				options.Recover = true
+				options.PriorNodeName = "node-01"
+				options.BackupDataPath = "/some/path/to/backup"
+
+				createShootManifest("test-credentials", nil, true, statusUID)
 				createShootStateManifest()
 			})
 
-			It("should reject --recover when ShootState manifest is missing", func() {
-				Expect(os.Remove(filepath.Join(configDir, "state.yaml"))).To(Succeed())
-				options.Recover = true
-				options.PriorNodeName = "node-01"
-
-				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires a ShootState resource in the config directory, but none was found")))
-			})
-
-			It("should reject --recover when Shoot .status.uid is empty", func() {
-				createShootManifest("test-credentials", nil, true, "")
-				options.Recover = true
-				options.PriorNodeName = "node-01"
-
-				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires the Shoot manifest in the config directory to have .status.uid set")))
-			})
-
 			It("should reject --recover without --prior-node-name", func() {
-				options.Recover = true
 				options.PriorNodeName = ""
 
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover must be combined with --prior-node-name")))
 			})
 
-			It("should accept --recover when all prerequisites are met", func() {
-				options.Recover = true
-				options.PriorNodeName = "node-01"
-				options.BackupDataPath = "/some/path/to/backup"
+			Context("recover ShootState resource validation", func() {
+				It("should reject --recover when ShootState manifest is missing", func() {
+					Expect(os.Remove(filepath.Join(configDir, "state.yaml"))).To(Succeed())
 
-				Expect(options.Validate()).To(Succeed())
+					Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires a ShootState resource in the config directory, but none was found")))
+				})
+
+				It("should reject --recover when Shoot .status.uid is empty", func() {
+					createShootManifest("test-credentials", nil, true, "")
+
+					Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires the Shoot manifest in the config directory to have .status.uid set")))
+				})
+			})
+
+			Context("recover BackupBucket/BackupEntry resources validation", func() {
+				It("should reject --recover when both BackupBucket and BackupEntry manifests are missing", func() {
+					Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires both BackupBucket and BackupEntry manifests in the config directory when backup is configured for the Shoot, but neither was found")))
+				})
+
+				It("should reject --recover when only the BackupBucket manifest is missing", func() {
+					createBackupEntryManifest(backupEntryName, backupBucketName)
+
+					Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires a BackupBucket manifest in the config directory when backup is configured for the Shoot, but none was found")))
+				})
+
+				It("should reject --recover when only the BackupEntry manifest is missing", func() {
+					createBackupBucketManifest(backupBucketName)
+
+					Expect(options.Validate()).To(MatchError(ContainSubstring("--recover requires a BackupEntry manifest in the config directory when backup is configured for the Shoot, but none was found")))
+				})
+
+				It("should reject mismatching BackupBucket name", func() {
+					createBackupBucketManifest("wrong-name")
+					createBackupEntryManifest(backupEntryName, backupBucketName)
+
+					Expect(options.Validate()).To(MatchError(
+						ContainSubstring(`BackupBucket manifest name "wrong-name" does not match the expected name %q (= Shoot .status.uid)`, backupBucketName),
+					))
+				})
+
+				It("should reject mismatching BackupEntry name", func() {
+					createBackupBucketManifest(backupBucketName)
+					createBackupEntryManifest("wrong-name", backupBucketName)
+
+					Expect(options.Validate()).To(MatchError(
+						ContainSubstring(`BackupEntry manifest name "wrong-name" does not match the expected name %q (= <controlPlaneNamespace>--<Shoot .status.uid>)`, backupEntryName),
+					))
+				})
+
+				It("should reject mismatching BackupEntry .spec.bucketName", func() {
+					createBackupBucketManifest(backupBucketName)
+					createBackupEntryManifest(backupEntryName, "wrong-bucket")
+
+					Expect(options.Validate()).To(MatchError(ContainSubstring(`BackupEntry manifest .spec.bucketName "wrong-bucket" does not match the BackupBucket manifest name`)))
+				})
 			})
 
 			It("should reject --recover without --backup-data-path", func() {
-				options.Recover = true
-				options.PriorNodeName = "node-01"
 				options.BackupDataPath = ""
 
+				createBackupBucketManifest(backupBucketName)
+				createBackupEntryManifest(backupEntryName, backupBucketName)
+
 				Expect(options.Validate()).To(MatchError(ContainSubstring("--recover must be combined with --backup-data-path")))
+			})
+
+			It("should accept --recover when all prerequisites are met", func() {
+				createBackupBucketManifest(backupBucketName)
+				createBackupEntryManifest(backupEntryName, backupBucketName)
+
+				Expect(options.Validate()).To(Succeed())
 			})
 		})
 

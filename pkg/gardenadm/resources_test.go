@@ -44,6 +44,8 @@ var _ = Describe("Resources", func() {
 			createCredentialsBinding(fsys, "credentialsBinding")
 			createWorkloadIdentity(fsys, "workloadIdentity1")
 			createWorkloadIdentity(fsys, "workloadIdentity2")
+			createBackupBucket(fsys, "backupBucket")
+			createBackupEntry(fsys, "backupEntry")
 		})
 
 		It("should read the Kubernetes resources successfully", func() {
@@ -74,6 +76,8 @@ var _ = Describe("Resources", func() {
 			Expect(resources.CredentialsBinding.Name).To(Equal("credentialsBinding"))
 			Expect(resources.WorkloadIdentities[0].Name).To(Equal("workloadIdentity1"))
 			Expect(resources.WorkloadIdentities[1].Name).To(Equal("workloadIdentity2"))
+			Expect(resources.BackupBucket.Name).To(Equal("backupBucket"))
+			Expect(resources.BackupEntry.Name).To(Equal("backupEntry"))
 		})
 
 		It("should ignore hidden files", func() {
@@ -171,6 +175,26 @@ var _ = Describe("Resources", func() {
 
 				_, err := gardenadm.ReadManifests(log, fsys)
 				Expect(err).To(MatchError(ContainSubstring("found more than one *securityv1alpha1.CredentialsBinding resource")))
+			})
+		})
+
+		Describe("BackupBucket", func() {
+			It("should return an error", func() {
+				createBackupBucket(fsys, "obj1")
+				createBackupBucket(fsys, "obj2")
+
+				_, err := gardenadm.ReadManifests(log, fsys)
+				Expect(err).To(MatchError(ContainSubstring("found more than one *gardencorev1beta1.BackupBucket resource")))
+			})
+		})
+
+		Describe("BackupEntry", func() {
+			It("should return an error", func() {
+				createBackupEntry(fsys, "obj1")
+				createBackupEntry(fsys, "obj2")
+
+				_, err := gardenadm.ReadManifests(log, fsys)
+				Expect(err).To(MatchError(ContainSubstring("found more than one *gardencorev1beta1.BackupEntry resource")))
 			})
 		})
 	})
@@ -310,6 +334,22 @@ metadata:
 func createWorkloadIdentity(fsys fstest.MapFS, name string) {
 	fsys["workloadidentity-"+name+".yaml"] = &fstest.MapFile{Data: []byte(`apiVersion: security.gardener.cloud/v1alpha1
 kind: WorkloadIdentity
+metadata:
+  name: ` + name + `
+`)}
+}
+
+func createBackupBucket(fsys fstest.MapFS, name string) {
+	fsys["backupbucket-"+name+".yaml"] = &fstest.MapFile{Data: []byte(`apiVersion: core.gardener.cloud/v1beta1
+kind: BackupBucket
+metadata:
+  name: ` + name + `
+`)}
+}
+
+func createBackupEntry(fsys fstest.MapFS, name string) {
+	fsys["backupentry-"+name+".yaml"] = &fstest.MapFile{Data: []byte(`apiVersion: core.gardener.cloud/v1beta1
+kind: BackupEntry
 metadata:
   name: ` + name + `
 `)}
