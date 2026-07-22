@@ -107,7 +107,7 @@ docker cp dev/local-backupbuckets gind-machine-0:/local-backupbuckets
 
 echo "> Restoring the control plane Node..."
 # TODO: Check why GRM gets deployed to worker Nodes
-docker exec -ti gind-machine-0 gardenadm init -d /gardenadm/discover-output --recover --prior-node-name=gind-machine-0 --backup-data-path "/${backup_data_path#dev/}"
+docker exec -ti gind-machine-0 gardenadm restore -d /gardenadm/discover-output --prior-node-name=gind-machine-0 --backup-data-path "/${backup_data_path#dev/}"
 
 echo "> Verifying the control plane Node restoration..."
 ./hack/dr-verify-restore.sh
