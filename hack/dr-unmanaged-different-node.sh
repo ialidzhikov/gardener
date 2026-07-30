@@ -2,6 +2,27 @@
 
 set -e
 
+VIRTUAL_GARDEN_KUBECONFIG="${VIRTUAL_GARDEN_KUBECONFIG:-./dev-setup/kubeconfigs/virtual-garden/kubeconfig}"
+
+if [[ ! -f "$VIRTUAL_GARDEN_KUBECONFIG" ]]; then
+  echo "ERROR: virtual garden kubeconfig not found at $VIRTUAL_GARDEN_KUBECONFIG." >&2
+  echo "Run ./hack/dr-kind-connect-up.sh first (or set VIRTUAL_GARDEN_KUBECONFIG)." >&2
+  exit 1
+fi
+
+if ! kubectl --kubeconfig "$VIRTUAL_GARDEN_KUBECONFIG" get namespaces &>/dev/null; then
+  echo "ERROR: virtual garden kubeconfig at $VIRTUAL_GARDEN_KUBECONFIG is not usable" >&2
+  echo "(the kind cluster / Gardener control plane may not be running)." >&2
+  exit 1
+fi
+
+if kubectl --kubeconfig "$VIRTUAL_GARDEN_KUBECONFIG" -n garden get shoot root &>/dev/null; then
+  echo "ERROR: Shoot garden/root already exists in the virtual garden cluster." >&2
+  echo "It was likely left behind by a previous disaster-recovery run." >&2
+  echo "Run ./hack/dr-clean-orphaned-resources.sh to clean up the orphaned resources before starting a new run." >&2
+  exit 1
+fi
+
 function targetMachine() {
   KUBECONFIG_SELFHOSTEDSHOOT_CLUSTER="$PWD/dev-setup/kubeconfigs/self-hosted-shoot/kubeconfig"
   ./hack/usage/generate-kubeconfig.sh self-hosted-shoot --docker gind-machine-0 > "$KUBECONFIG_SELFHOSTEDSHOOT_CLUSTER"
@@ -44,14 +65,6 @@ docker exec -ti gind-machine-2 $(echo $JOIN_COMMAND_2)
 echo "> Creating dummy workload..."
 targetMachine
 ./hack/create-workload.sh
-
-echo "> Setting up Gardener control plane in the kind cluster..."
-make kind-up
-make gardenadm-up SCENARIO=connect-kind
-
-echo "> Sanity checking that gardener-apiserver is running..."
-VIRTUAL_GARDEN_KUBECONFIG="./dev-setup/kubeconfigs/virtual-garden/kubeconfig"
-kubectl --kubeconfig "$VIRTUAL_GARDEN_KUBECONFIG" get namespaces
 
 echo "> Building gardenadm binary..."
 make -B gardenadm
