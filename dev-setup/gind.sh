@@ -89,7 +89,15 @@ case "$COMMAND" in
 
     docker compose -f "$GIND_COMPOSE_FILE" down --volumes
 
-    "$(dirname "$0")/infra.sh" down
+    # Only tear down the shared infra (DNS/registry/backup bucket, kind docker network) if no kind cluster
+    # is still using it. This lets the DR flow (see hack/dr-unmanaged-*.sh) reuse a long-lived kind cluster
+    # and the Gardener control plane running on it across gind-up/gind-down cycles. `make kind-down` remains
+    # the owner of the shared infra teardown.
+    if kind get clusters 2>/dev/null | grep -q .; then
+      echo "Kind cluster(s) still present; leaving shared infra intact. Run 'make kind-down' to remove it."
+    else
+      "$(dirname "$0")/infra.sh" down
+    fi
     ;;
 
   *)
