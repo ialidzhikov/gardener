@@ -164,6 +164,17 @@ func (b *GardenadmBotanist) staticControlPlaneComponents() []staticControlPlaneC
 // OperatingSystemConfig, waits for it to be reconciled by the OS extension, and deploys the ManagedResource containing
 // the Secret with OperatingSystemConfig for gardener-node-agent.
 func (b *GardenadmBotanist) DeployControlPlaneDeployments(ctx context.Context) error {
+	// Explicitly set the gardener-node-agent reconciliation delay to 0 for gind-machine-3 so it reconciles the
+	// OperatingSystemConfig immediately instead of waiting for the jitter period assigned by the node-agent-reconciliation-delay controller.
+	//
+	// TODO(dimitar-kostadinov): Find out how to fix this hack/workaround in the future.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "gind-machine-3"}}
+	patch := client.MergeFrom(node.DeepCopy())
+	metav1.SetMetaDataAnnotation(&node.ObjectMeta, v1beta1constants.AnnotationNodeAgentReconciliationDelay, "0s")
+	if err := b.ShootClientSet.Client().Patch(ctx, node, patch); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed setting reconciliation delay annotation on node %q: %w", node.Name, err)
+	}
+
 	if err := b.deployControlPlaneDeployments(ctx); err != nil {
 		return fmt.Errorf("failed deploying control plane deployments: %w", err)
 	}
