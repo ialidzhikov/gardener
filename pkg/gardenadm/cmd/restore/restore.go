@@ -60,10 +60,12 @@ gardenadm restore --config-dir /path/to/manifests --prior-node-name <name> --bac
 
 func run(ctx context.Context, opts *Options) error {
 	initOpts := &initcmd.Options{
-		Options:          opts.Options,
-		ManifestOptions:  opts.ManifestOptions,
-		UseBootstrapEtcd: opts.UseBootstrapEtcd,
-		UseHostNetwork:   opts.UseHostNetwork,
+		Options:         opts.Options,
+		ManifestOptions: opts.ManifestOptions,
+		// Restore requires an etcd backup, which only a control plane using etcd-druid (not the bootstrap etcd)
+		// produces. Hence, restore always transitions to etcd-druid and does not expose --use-bootstrap-etcd.
+		UseBootstrapEtcd: false,
+		UseHostNetwork:   false,
 		Zone:             opts.Zone,
 	}
 

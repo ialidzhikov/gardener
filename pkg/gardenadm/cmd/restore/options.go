@@ -22,13 +22,6 @@ type Options struct {
 	*cmd.Options
 	cmd.ManifestOptions
 
-	// UseBootstrapEtcd indicates whether to use the bootstrap etcd instead of transitioning to etcd-druid
-	// (default: false). This helps `gardenadm restore` to run faster.
-	UseBootstrapEtcd bool
-	// UseHostNetwork indicates whether to run gardener-resource-manager and extensions in host network (instead of
-	// redeploying them into the pod network after bootstrapping) (default: false). This helps `gardenadm restore` to
-	// run faster.
-	UseHostNetwork bool
 	// Zone is the availability zone in which the new node is being initialized.
 	// It is validated against the `.spec.provider.workers[].zones` field of the Shoot manifest.
 	// If the worker pool has multiple zones configured, this flag is required.
@@ -76,7 +69,13 @@ func (o *Options) Validate() error {
 		return err
 	}
 
-	return o.validateZone(resources.Shoot)
+	effectiveZone, err := cmd.ValidateAndDetermineControlPlaneZone(resources.Shoot, o.Zone)
+	if err != nil {
+		return err
+	}
+
+	o.Zone = effectiveZone
+	return nil
 }
 
 func validateShoot(shoot *gardencorev1beta1.Shoot) error {
@@ -128,30 +127,6 @@ func validateBackupResources(resources gardenadm.Resources) error {
 	return nil
 }
 
-// validateZone validates the zone configuration against the shoot specification.
-func (o *Options) validateZone(shoot *gardencorev1beta1.Shoot) error {
-	if v1beta1helper.HasManagedInfrastructure(shoot) {
-		if o.Zone != "" {
-			return fmt.Errorf("zone can't be configured for shoot with managed infrastructure")
-		}
-		return nil
-	}
-
-	// restore command is only for control plane node, therefore we look for the control plane pool
-	var controlPlanePool *gardencorev1beta1.Worker
-	if controlPlanePool = v1beta1helper.ControlPlaneWorkerPoolForShoot(shoot.Spec.Provider.Workers); controlPlanePool == nil {
-		return fmt.Errorf("zone validation failed, shoot doesn't have a control plane worker pool configured")
-	}
-
-	effectiveZone, err := cmd.DetermineZone(*controlPlanePool, o.Zone)
-	if err != nil {
-		return fmt.Errorf("failed determining zone for control plane worker pool %q: %w", controlPlanePool.Name, err)
-	}
-
-	o.Zone = effectiveZone
-	return nil
-}
-
 // Complete completes the options.
 func (o *Options) Complete() error {
 	return o.ManifestOptions.Complete()
@@ -159,8 +134,6 @@ func (o *Options) Complete() error {
 
 func (o *Options) addFlags(fs *pflag.FlagSet) {
 	o.ManifestOptions.AddFlags(fs)
-	fs.BoolVar(&o.UseBootstrapEtcd, "use-bootstrap-etcd", false, "If set, the control plane continues using the bootstrap etcd instead of transitioning to etcd-druid. This can be useful for testing purposes to save time.")
-	fs.BoolVar(&o.UseHostNetwork, "use-host-network", false, "If set, gardener-resource-manager and extensions continue to run in host network instead of getting redeployed into the pod network after bootstrapping. This can be useful for testing purposes to save time.")
 	fs.StringVarP(&o.Zone, "zone", "z", "", "Availability zone for the recovered node. Required if the control plane worker pool in the Shoot has multiple zones configured. Optional if exactly one zone is configured (applied automatically). Must not be set if no zones are configured.")
 	fs.StringVar(&o.BackupDataPath, "backup-data-path", "", "Local path on the node where the etcd backup data is stored. Expected structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2")
 	fs.StringVar(&o.PriorNodeName, "prior-node-name", "", "The name of the prior control plane node. Required in order to cleanup stale resources.")
