@@ -7,10 +7,81 @@ package cmd_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/gardenadm/cmd"
 )
+
+var _ = Describe("ValidateAndDetermineControlPlaneZone", func() {
+	unmanagedShoot := func(zones []string) *gardencorev1beta1.Shoot {
+		return &gardencorev1beta1.Shoot{
+			Spec: gardencorev1beta1.ShootSpec{
+				Provider: gardencorev1beta1.Provider{
+					Workers: []gardencorev1beta1.Worker{{
+						Name:         "control-plane",
+						Zones:        zones,
+						ControlPlane: &gardencorev1beta1.WorkerControlPlane{},
+					}},
+				},
+			},
+		}
+	}
+
+	When("the shoot has managed infrastructure", func() {
+		managedShoot := &gardencorev1beta1.Shoot{
+			Spec: gardencorev1beta1.ShootSpec{
+				Provider: gardencorev1beta1.Provider{
+					Workers: []gardencorev1beta1.Worker{{Name: "worker"}},
+				},
+				CredentialsBindingName: ptr.To("test-credentials"),
+			},
+		}
+
+		It("should reject a provided zone", func() {
+			zone, err := cmd.ValidateAndDetermineControlPlaneZone(managedShoot, "us-east-1a")
+			Expect(err).To(MatchError(ContainSubstring("zone can't be configured for shoot with managed infrastructure")))
+			Expect(zone).To(BeEmpty())
+		})
+
+		It("should accept an empty zone", func() {
+			zone, err := cmd.ValidateAndDetermineControlPlaneZone(managedShoot, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(zone).To(BeEmpty())
+		})
+	})
+
+	It("should fail when the shoot is nil", func() {
+		zone, err := cmd.ValidateAndDetermineControlPlaneZone(nil, "")
+		Expect(err).To(MatchError(ContainSubstring("shoot resource is missing in the manifests")))
+		Expect(zone).To(BeEmpty())
+	})
+
+	It("should fail when the shoot has no control plane worker pool", func() {
+		shoot := &gardencorev1beta1.Shoot{
+			Spec: gardencorev1beta1.ShootSpec{
+				Provider: gardencorev1beta1.Provider{
+					Workers: []gardencorev1beta1.Worker{{Name: "worker"}},
+				},
+			},
+		}
+		zone, err := cmd.ValidateAndDetermineControlPlaneZone(shoot, "")
+		Expect(err).To(MatchError(ContainSubstring("shoot doesn't have a control plane worker pool configured")))
+		Expect(zone).To(BeEmpty())
+	})
+
+	It("should determine the zone against the control plane worker pool", func() {
+		zone, err := cmd.ValidateAndDetermineControlPlaneZone(unmanagedShoot([]string{"zone-1"}), "")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(zone).To(Equal("zone-1"))
+	})
+
+	It("should surface DetermineZone errors for the control plane worker pool", func() {
+		zone, err := cmd.ValidateAndDetermineControlPlaneZone(unmanagedShoot([]string{"zone-1", "zone-2"}), "")
+		Expect(err).To(MatchError(ContainSubstring(`worker "control-plane" has multiple zones configured [zone-1 zone-2], --zone flag is required`)))
+		Expect(zone).To(BeEmpty())
+	})
+})
 
 var _ = Describe("DetermineZone", func() {
 	var worker gardencorev1beta1.Worker
