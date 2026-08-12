@@ -50,7 +50,7 @@ gardenadm init --config-dir /path/to/manifests --zone zone-a`,
 				return err
 			}
 
-			return RunInit(cmd.Context(), opts)
+			return run(cmd.Context(), opts)
 		},
 	}
 
@@ -59,14 +59,20 @@ gardenadm init --config-dir /path/to/manifests --zone zone-a`,
 	return cmd
 }
 
-// RunInit runs the main init flow that bootstraps the control plane and deploys the shoot components.
-// It is exported so that the `gardenadm restore` command can reuse the same graph.
-func RunInit(ctx context.Context, opts *Options) error {
+// run bootstraps the control plane and then runs the main init flow that deploys the shoot components.
+func run(ctx context.Context, opts *Options) error {
 	b, err := BootstrapControlPlane(ctx, opts, "")
 	if err != nil {
 		return fmt.Errorf("failed bootstrapping control plane: %w", err)
 	}
 
+	return RunInitFlow(ctx, opts, b)
+}
+
+// RunInitFlow runs the main init flow that deploys the shoot components on an already-bootstrapped control plane.
+// It is exported so that the `gardenadm restore` command can reuse the same graph without bootstrapping the control
+// plane a second time (restore performs the bootstrap itself as part of its recovery phase).
+func RunInitFlow(ctx context.Context, opts *Options, b *gardenadmbotanist.GardenadmBotanist) error {
 	dir := filepath.Dir(cmd.ConfigDirLocation)
 	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
 		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
