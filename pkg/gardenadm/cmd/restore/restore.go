@@ -78,7 +78,7 @@ func run(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed performing required cleanups: %w", err)
 	}
 
-	return initcmd.RunInit(ctx, initOpts)
+	return initcmd.RunInitFlow(ctx, initOpts, b)
 }
 
 func performRequiredCleanups(ctx context.Context, b *botanist.GardenadmBotanist, priorNodeName string) error {
