@@ -17,6 +17,7 @@ import (
 	"k8s.io/component-base/version"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -47,6 +48,47 @@ func (b *GardenadmBotanist) DeployOperatingSystemConfigSecretForBootstrap(ctx co
 	}
 
 	return b.createOperatingSystemConfigSecretForNodeAgent(ctx, oscData.Object, oscData.GardenerNodeAgentSecretName, controlPlaneWorkerPoolName)
+}
+
+// OperatingSystemConfigSecret returns the gardener-node-agent OperatingSystemConfig secret that was most recently built
+// by this botanist (e.g., during the bootstrap phase). It may be nil if no such secret has been created yet.
+func (b *GardenadmBotanist) OperatingSystemConfigSecret() *corev1.Secret {
+	return b.operatingSystemConfigSecret
+}
+
+// SetOperatingSystemConfigSecret sets the gardener-node-agent OperatingSystemConfig secret on this botanist. It is used
+// to carry the secret built during the bootstrap phase over to the botanist connected to the real API server.
+func (b *GardenadmBotanist) SetOperatingSystemConfigSecret(secret *corev1.Secret) {
+	b.operatingSystemConfigSecret = secret
+}
+
+// OverwriteOperatingSystemConfigSecret overwrites the gardener-node-agent OperatingSystemConfig secret in the cluster
+// with the content of the given secret (matching it by name).
+//
+// This is needed on restore: the OperatingSystemConfig secret name is content-independent (it is derived from cluster
+// parameters, not from the list of static-pod manifests), so the secret restored from the etcd snapshot carries the
+// name of the current node-agent secret but the *managed* etcd static-pod manifests (etcd-main.yaml/etcd-events.yaml).
+// If the systemd gardener-node-agent were activated against that restored secret, its very first reconciliation would
+// already materialize the managed etcd static pods during the bootstrap phase - long before the etcd-druid transition
+// happens - which conflicts with the bootstrap etcd and breaks the control plane. By overwriting the secret with the
+// bootstrap content (built during the bootstrap phase) before activation, the node-agent's first reconciliation
+// deploys the bootstrap etcd instead, mirroring the healthy lineage of `gardenadm init` and the first
+// `gardenadm restore`. The later etcd-druid transition rewrites the secret with the managed content, at which point the
+// node-agent removes the bootstrap etcd manifests as usual.
+func (b *GardenadmBotanist) OverwriteOperatingSystemConfigSecret(ctx context.Context, bootstrapSecret *corev1.Secret) error {
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bootstrapSecret.Name, Namespace: bootstrapSecret.Namespace}}
+
+	if _, err := controllerutil.CreateOrUpdate(ctx, b.SeedClientSet.Client(), secret, func() error {
+		secret.Labels = bootstrapSecret.Labels
+		secret.Annotations = bootstrapSecret.Annotations
+		secret.Type = bootstrapSecret.Type
+		secret.Data = bootstrapSecret.Data
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed overwriting the OperatingSystemConfig secret %q for gardener-node-agent with bootstrap content: %w", client.ObjectKeyFromObject(secret), err)
+	}
+
+	return nil
 }
 
 func (b *GardenadmBotanist) createOperatingSystemConfigSecretForNodeAgent(ctx context.Context, osc *extensionsv1alpha1.OperatingSystemConfig, secretName, poolName string) error {

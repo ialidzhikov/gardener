@@ -90,6 +90,17 @@ func performRequiredCleanups(ctx context.Context, b *botanist.GardenadmBotanist,
 		return fmt.Errorf("failed to delete prior Node and Pods running on it: %w", err)
 	}
 
+	// The OperatingSystemConfig secret restored from the etcd snapshot carries the managed etcd static-pod manifests.
+	// Overwrite it with the bootstrap etcd content (built during the bootstrap phase) so that gardener-node-agent's
+	// first reconciliation deploys the bootstrap etcd instead of prematurely materializing the managed etcd during the
+	// bootstrap phase. See botanist.OverwriteOperatingSystemConfigSecret for the full rationale.
+	if bootstrapSecret := b.OperatingSystemConfigSecret(); bootstrapSecret != nil {
+		b.Logger.Info("Overwriting gardener-node-agent OperatingSystemConfig secret with bootstrap etcd content", "secret", client.ObjectKeyFromObject(bootstrapSecret))
+		if err := b.OverwriteOperatingSystemConfigSecret(ctx, bootstrapSecret); err != nil {
+			return fmt.Errorf("failed overwriting OperatingSystemConfig secret with bootstrap etcd content: %w", err)
+		}
+	}
+
 	b.Logger.Info("Finished required cleanups")
 
 	return nil
