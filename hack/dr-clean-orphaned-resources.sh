@@ -39,9 +39,16 @@ force_delete() {
   fi
 
   echo "> Removing $kind/$name..."
-  kubectl_virtual "${ns_args[@]}" annotate "$kind" "$name" confirmation.gardener.cloud/deletion=true --overwrite &>/dev/null || true
-  kubectl_virtual "${ns_args[@]}" delete "$kind" "$name" --wait=false --ignore-not-found &>/dev/null || true
-  kubectl_virtual "${ns_args[@]}" patch "$kind" "$name" --type=merge -p '{"metadata":{"finalizers":null}}' &>/dev/null || true
+  # A Shoot's `gardener` finalizer can only be removed once its status.lastOperation is a successful
+  # Delete (enforced by the FinalizerRemoval admission plugin). An orphaned Shoot still carries its
+  # last reconcile (e.g. Create/Succeeded), so make the status look like a completed deletion first.
+  if [[ "$kind" == "shoot" ]]; then
+    kubectl_virtual "${ns_args[@]}" patch "$kind" "$name" --subresource=status --type=merge \
+      -p '{"status":{"lastOperation":{"type":"Delete","state":"Succeeded","progress":100,"description":"Force-cleaned by dr-clean-orphaned-resources.sh"}}}'
+  fi
+  kubectl_virtual "${ns_args[@]}" annotate "$kind" "$name" confirmation.gardener.cloud/deletion=true --overwrite
+  kubectl_virtual "${ns_args[@]}" patch "$kind" "$name" --type=merge -p '{"metadata":{"finalizers":null}}'
+  kubectl_virtual "${ns_args[@]}" delete "$kind" "$name" --wait=true --ignore-not-found
 }
 
 echo "> Cleaning up orphaned resources from previous disaster-recovery runs..."
