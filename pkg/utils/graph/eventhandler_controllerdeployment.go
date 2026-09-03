@@ -19,18 +19,26 @@ import (
 func (g *graph) setupControllerDeploymentWatch(_ context.Context, informer cache.Informer) error {
 	_, err := informer.AddEventHandler(toolscache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			name, secretRefs, configMapRefs := extractControllerDeploymentInfo(obj)
+			controllerDeployment, ok := obj.(*gardencorev1.ControllerDeployment)
+			if !ok {
+				return
+			}
+			_, secretRefs, configMapRefs := extractControllerDeploymentInfo(obj)
 			if len(secretRefs) > 0 || len(configMapRefs) > 0 {
-				g.handleControllerDeploymentCreateOrUpdate(name, secretRefs, configMapRefs)
+				g.HandleControllerDeploymentCreateOrUpdate(controllerDeployment)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
+			controllerDeployment, ok := newObj.(*gardencorev1.ControllerDeployment)
+			if !ok {
+				return
+			}
 			_, oldSecretRefs, oldConfigMapRefs := extractControllerDeploymentInfo(oldObj)
-			name, newSecretRefs, newConfigMapRefs := extractControllerDeploymentInfo(newObj)
+			_, newSecretRefs, newConfigMapRefs := extractControllerDeploymentInfo(newObj)
 
 			if !sets.New(oldSecretRefs...).Equal(sets.New(newSecretRefs...)) ||
 				!sets.New(oldConfigMapRefs...).Equal(sets.New(newConfigMapRefs...)) {
-				g.handleControllerDeploymentCreateOrUpdate(name, newSecretRefs, newConfigMapRefs)
+				g.HandleControllerDeploymentCreateOrUpdate(controllerDeployment)
 			}
 		},
 		DeleteFunc: func(obj any) {
@@ -75,19 +83,23 @@ func extractControllerDeploymentInfo(obj any) (string, []string, []string) {
 	return controllerDeployment.Name, secretNames, configMapsNames
 }
 
-func (g *graph) handleControllerDeploymentCreateOrUpdate(controllerDeploymentName string, secretNames, configMapNames []string) {
+// HandleControllerDeploymentCreateOrUpdate adds edges from the Secrets/ConfigMaps referenced by the ControllerDeployment
+// (via its Helm OCIRepository pull secret/CA bundle and its `.resources` field) to the ControllerDeployment vertex.
+func (g *graph) HandleControllerDeploymentCreateOrUpdate(controllerDeployment *gardencorev1.ControllerDeployment) {
 	start := time.Now()
 	defer func() {
 		metricUpdateDuration.WithLabelValues("ControllerDeployment", "CreateOrUpdate").Observe(time.Since(start).Seconds())
 	}()
 
+	name, secretNames, configMapNames := extractControllerDeploymentInfo(controllerDeployment)
+
 	g.lock.Lock()
 	defer g.lock.Unlock()
 
-	g.deleteAllIncomingEdges(VertexTypeSecret, VertexTypeControllerDeployment, "", controllerDeploymentName)
-	g.deleteAllIncomingEdges(VertexTypeConfigMap, VertexTypeControllerDeployment, "", controllerDeploymentName)
+	g.deleteAllIncomingEdges(VertexTypeSecret, VertexTypeControllerDeployment, "", name)
+	g.deleteAllIncomingEdges(VertexTypeConfigMap, VertexTypeControllerDeployment, "", name)
 
-	controllerDeploymentVertex := g.getOrCreateVertex(VertexTypeControllerDeployment, "", controllerDeploymentName)
+	controllerDeploymentVertex := g.getOrCreateVertex(VertexTypeControllerDeployment, "", name)
 	for _, secretName := range secretNames {
 		secretVertex := g.getOrCreateVertex(VertexTypeSecret, v1beta1constants.GardenNamespace, secretName)
 		g.addEdge(secretVertex, controllerDeploymentVertex)
