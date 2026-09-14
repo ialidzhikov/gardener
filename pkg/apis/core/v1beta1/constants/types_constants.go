@@ -845,7 +845,6 @@ const (
 	LabelWorkerPoolSystemComponents = "worker.gardener.cloud/system-components"
 	// LabelWorkerPoolGardenerNodeAgentSecretName is the name of the secret used by the gardener node agent
 	LabelWorkerPoolGardenerNodeAgentSecretName = "worker.gardener.cloud/gardener-node-agent-secret-name"
-
 	// LabelNodeRoleControlPlane is a label key marking a node as a control-plane node.
 	LabelNodeRoleControlPlane = "node-role.kubernetes.io/control-plane"
 

@@ -743,6 +743,7 @@ var _ = Describe("ResourceManager", func() {
 					corev1.Toleration{Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
 					corev1.Toleration{Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
 				)
+				deployment.Spec.Template.Spec.NodeSelector = map[string]string{"node-role.kubernetes.io/control-plane": ""}
 				deployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "KUBERNETES_SERVICE_HOST", Value: "localhost"}}
 				deployment.Spec.Template.Spec.HostNetwork = true
 				deployment.Spec.Template.Spec.PriorityClassName = "system-cluster-critical"
@@ -2466,6 +2467,25 @@ subjects:
 				resourceManager.SetSecrets(secrets)
 
 				Expect(resourceManager.Deploy(ctx)).To(MatchError(fakeErr))
+			})
+		})
+
+		Context("target cluster != source cluster, self-hosted shoot", func() {
+			BeforeEach(func() {
+				cfg.IsSelfHostedShoot = true
+				resourceManager = New(fakeClient, deployNamespace, sm, cfg)
+				resourceManager.SetSecrets(secrets)
+			})
+
+			It("should annotate the service to allow webhook traffic from all sources", func() {
+				Expect(resourceManager.Deploy(ctx)).To(Succeed())
+
+				actualService := &corev1.Service{}
+				Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: deployNamespace, Name: "gardener-resource-manager"}, actualService)).To(Succeed())
+				Expect(actualService.Annotations).To(HaveKeyWithValue(
+					"networking.resources.gardener.cloud/from-world-to-ports",
+					fmt.Sprintf(`[{"protocol":"TCP","port":%d}]`, serverPort),
+				))
 			})
 		})
 

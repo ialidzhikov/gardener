@@ -36,9 +36,6 @@ spec:
       minimum: 1
       # Setting max > min triggers the deployment of the cluster-autoscaler
       maximum: 2
-      systemComponents:
-        # TODO: Check why GRM is not working from the worker Nodes when scheduled there.
-        allow: false
       kubernetes:
         kubelet:
           maxPods: 250
