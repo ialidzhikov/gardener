@@ -11,9 +11,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	gardenadmbotanist "github.com/gardener/gardener/pkg/gardenadm/botanist"
 	"github.com/gardener/gardener/pkg/gardenadm/cmd"
@@ -96,6 +99,14 @@ func RunInitFlow(ctx context.Context, opts *Options, b *gardenadmbotanist.Garden
 		allowBackup      = v1beta1helper.GetBackupConfigForShoot(b.Shoot.GetInfo(), nil) != nil
 		kubeProxyEnabled = v1beta1helper.KubeProxyEnabled(b.Shoot.GetInfo().Spec.Kubernetes.KubeProxy)
 
+		dumpManagedResourcesAtStart = g.Add(flow.Task{
+			Name: "DEBUG: Dumping ManagedResources at the beginning of the init flow",
+			Fn: func(ctx context.Context) error {
+				return dumpManagedResources(ctx, b.SeedClientSet.Client(), b.Logger, "init-flow-start")
+			},
+			SkipIf: !b.Shoot.IsRestorePhase(),
+		})
+		_                           = dumpManagedResourcesAtStart
 		_                           = g.AddGroup(b.DeployNamespacesTaskGroup())
 		_                           = g.AddGroup(b.DeployCloudProviderSecretTaskGroup())
 		_                           = g.AddGroup(b.ReconcileCustomResourceDefinitionsTaskGroup())
@@ -121,10 +132,25 @@ func RunInitFlow(ctx context.Context, opts *Options, b *gardenadmbotanist.Garden
 			b.ReconcileGardenerResourceManagerTaskGroup(podNetworkAvailable, shootIsGarden, false).
 				WithDependencies(approveGardenerNodeAgentCSR, waitUntilControlPlaneNodeLabeled),
 		)
+
+		dumpManagedResourcesAfterGRM = g.Add(flow.Task{
+			Name: "DEBUG: Dumping ManagedResources after deploying GRM in host network, then panicking",
+			Fn: func(ctx context.Context) error {
+				if err := dumpManagedResources(ctx, b.SeedClientSet.Client(), b.Logger, "after-grm-host-network"); err != nil {
+					return err
+				}
+				panic("DEBUG: stopping gardenadm restore after dumping ManagedResources")
+			},
+			SkipIf:       !b.Shoot.IsRestorePhase(),
+			Dependencies: flow.NewTaskIDs(reconcileGardenerResourceManager),
+		})
+		_ = dumpManagedResourcesAfterGRM
+
 		_                             = g.AddGroup(b.ReconcileSystemResourcesTaskGroup())
 		reconcileExtensionControllers = g.AddGroup(b.ReconcileExtensionControllersTaskGroup(podNetworkAvailable))
-		reconcileNetworkPolicies      = g.AddGroup(b.ReconcileNetworkPoliciesTaskGroup())
-		_                             = g.AddGroup(
+
+		reconcileNetworkPolicies = g.AddGroup(b.ReconcileNetworkPoliciesTaskGroup())
+		_                        = g.AddGroup(
 			b.ReconcileInfrastructureTaskGroup(false).
 				WithDependencies(gardenadmbotanist.TaskGroupReconcileExtensionControllers),
 		)
@@ -415,4 +441,38 @@ func BootstrapControlPlane(ctx context.Context, opts *Options, backupDataPath st
 	bootstrapBotanist.SetOperatingSystemConfigSecret(b.OperatingSystemConfigSecret())
 
 	return bootstrapBotanist, nil
+}
+
+// dumpManagedResources logs the observed state of all ManagedResources in the cluster. Temporary debug helper.
+func dumpManagedResources(ctx context.Context, c client.Client, log logr.Logger, phase string) error {
+	mrList := &resourcesv1alpha1.ManagedResourceList{}
+	if err := c.List(ctx, mrList); err != nil {
+		return fmt.Errorf("failed listing ManagedResources for dump (%s): %w", phase, err)
+	}
+
+	log.Info("=== ManagedResources dump ===", "phase", phase, "count", len(mrList.Items))
+	for _, mr := range mrList.Items {
+		conditions := map[string]string{}
+		for _, cond := range mr.Status.Conditions {
+			conditions[string(cond.Type)] = string(cond.Status)
+		}
+		log.Info("ManagedResource",
+			"phase", phase,
+			"namespace", mr.Namespace,
+			"name", mr.Name,
+			"class", ptrDeref(mr.Spec.Class),
+			"generation", mr.Generation,
+			"observedGeneration", mr.Status.ObservedGeneration,
+			"conditions", conditions,
+			"secretRefs", mr.Spec.SecretRefs,
+		)
+	}
+	return nil
+}
+
+func ptrDeref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

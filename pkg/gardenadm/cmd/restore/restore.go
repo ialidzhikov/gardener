@@ -84,9 +84,11 @@ func run(ctx context.Context, opts *Options) error {
 func performRequiredCleanups(ctx context.Context, b *botanist.GardenadmBotanist, priorNodeName string) error {
 	b.Logger.Info("Performing required cleanups")
 
-	if err := finalizeManagedResources(ctx, b.SeedClientSet.Client(), b.Logger); err != nil {
-		return fmt.Errorf("failed to finalize ManagedResources: %w", err)
-	}
+	// DEBUG: Commented out so the restored ManagedResources are not finalized/deleted, allowing us to observe
+	// whether GRM reconciles the restored (stale-status) MRs and whether flow wait steps early-exit on stale status.
+	// if err := finalizeManagedResources(ctx, b.SeedClientSet.Client(), b.Logger); err != nil {
+	// 	return fmt.Errorf("failed to finalize ManagedResources: %w", err)
+	// }
 
 	if err := deletePriorNodeAndPodsRunningOnIt(ctx, b.SeedClientSet.Client(), priorNodeName, b.Logger); err != nil {
 		return fmt.Errorf("failed to delete prior Node and Pods running on it: %w", err)
