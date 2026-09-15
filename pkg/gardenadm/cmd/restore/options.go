@@ -34,6 +34,10 @@ type Options struct {
 	BackupDataPath string
 	// PriorNodeName defines the name of the node that is going to be replaced. Must be used alongside `--recover` to take effect.
 	PriorNodeName string
+	// Force forces the restore even if the control plane is already initialized (e.g. restored from the etcd backup).
+	// This is required to retry a failed restore.
+	// Defaults to false.
+	Force bool
 }
 
 // ParseArgs parses the arguments to the options.
@@ -137,4 +141,5 @@ func (o *Options) addFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&o.Zone, "zone", "z", "", "Availability zone for the recovered node. Required if the control plane worker pool in the Shoot has multiple zones configured. Optional if exactly one zone is configured (applied automatically). Must not be set if no zones are configured.")
 	fs.StringVar(&o.BackupDataPath, "backup-data-path", "", "Local path on the node where the etcd backup data is stored. Expected structure: <backupBucketsRoot>/<bucketName>/<namespace>--<uid>/etcd-main/v2")
 	fs.StringVar(&o.PriorNodeName, "prior-node-name", "", "The name of the prior control plane node. Required in order to cleanup stale resources.")
+	fs.BoolVar(&o.Force, "force", false, "If set, the restore is executed even if the control plane is already initialized. Use this only to retry a failed 'gardenadm restore'.")
 }

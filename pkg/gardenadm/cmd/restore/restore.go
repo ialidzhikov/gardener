@@ -67,6 +67,7 @@ func run(ctx context.Context, opts *Options) error {
 		UseBootstrapEtcd: false,
 		UseHostNetwork:   false,
 		Zone:             opts.Zone,
+		Force:            opts.Force,
 	}
 
 	b, err := initcmd.BootstrapControlPlane(ctx, initOpts, opts.BackupDataPath)
