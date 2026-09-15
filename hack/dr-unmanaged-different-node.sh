@@ -2,6 +2,8 @@
 
 set -e
 
+# FORCE passes --force to 'gardenadm restore'. Use it only to retry a failed restore.
+FORCE="${FORCE:-false}"
 VIRTUAL_GARDEN_KUBECONFIG="${VIRTUAL_GARDEN_KUBECONFIG:-./dev-setup/kubeconfigs/virtual-garden/kubeconfig}"
 
 if [[ ! -f "$VIRTUAL_GARDEN_KUBECONFIG" ]]; then
@@ -122,7 +124,7 @@ backup_data_path=$(find dev/local-backupbuckets | grep v2$ | grep -v garden)
 docker cp dev/local-backupbuckets gind-machine-3:/local-backupbuckets
 
 echo "> Restoring the control plane Node..."
-docker exec -ti gind-machine-3 gardenadm restore -d /gardenadm/discover-output --prior-node-name=gind-machine-0 --backup-data-path "/${backup_data_path#dev/}"
+docker exec -ti gind-machine-3 gardenadm restore -d /gardenadm/discover-output --prior-node-name=gind-machine-0 --backup-data-path "/${backup_data_path#dev/}" --force="$FORCE"
 
 # For the purpose of the local setup, we delete the Master Lease records from ETCD post-restore to speed up the development process.
 # Master leases are used for constructing an `EndpointSlice` for kuba-apiserver instances. During the restoration, the IP of the
