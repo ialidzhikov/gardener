@@ -80,13 +80,6 @@ echo "> Waiting until the Shoot is reconciled..."
 # - SystemComponentsHealthy fails with: 'Deployment "kube-system/calico-typha-deploy" is unhealthy: condition "Progressing" has invalid status False (expected True) due to ProgressDeadlineExceeded: <...>''
 KUBECONFIG="$VIRTUAL_GARDEN_KUBECONFIG" NAMESPACE=garden ./hack/usage/wait-for.sh shoot root GardenletReady APIServerAvailable EveryNodeReady BackupBucketsReady
 
-echo "> Obtaining a ShootState resource for the Shoot..."
-# Rolling out the gardenlet Deployment is required to trigger the shootstate-controller to create a ShootState for the Shoot
-echo "> Rolling out the kube-system/gardenlet Deployment to trigger ShootState creation..."
-targetMachine
-kubectl -n kube-system rollout restart deployment/gardenlet
-echo "> Waiting until the kube-system/gardenlet Deployment successfully rolled out..."
-kubectl -n kube-system rollout status deployment/gardenlet
 echo "> Waiting until the ShootState is created..."
 for i in {1..6}; do
   if kubectl --kubeconfig "$VIRTUAL_GARDEN_KUBECONFIG" -n garden get shootstate root &> /dev/null; then
@@ -95,6 +88,10 @@ for i in {1..6}; do
   echo "> Attempt $i/6: Waiting until garden/root ShootState is created. Sleeping 10s..."
   sleep 10
 done
+if ! kubectl --kubeconfig "$VIRTUAL_GARDEN_KUBECONFIG" -n garden get shootstate root &> /dev/null; then
+  echo "ERROR: garden/root ShootState was not created in time." >&2
+  exit 1
+fi
 
 echo "> Triggering an etcd delta snapshot before simulating the disaster..."
 triggerEtcdDeltaSnapshot

@@ -16,7 +16,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,7 +24,6 @@ import (
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
-	kubernetesutils "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 )
 
@@ -64,8 +62,8 @@ var _ = Describe("gardenadm unmanaged infrastructure control plane restoration t
 		It("should ensure the self-hosted shoot is connected and a ShootState exists", func(ctx SpecContext) {
 			// 'gardenadm discover existing' (run after the disaster) needs a Shoot and ShootState in the garden. This
 			// step is idempotent: if a ShootState already exists (e.g. from a prior run or a connected environment), it
-			// does nothing; otherwise it connects the shoot to the garden and drives ShootState creation, mirroring
-			// hack/dr-unmanaged-same-node.sh.
+			// does nothing; otherwise it connects the shoot to the garden and waits for the ShootState to be created,
+			// mirroring hack/dr-unmanaged-same-node.sh.
 			By("Create a client for the garden cluster")
 			initClientSet(ctx, &gardenClientSet, gardenKubeconfigPathOnHost, client.Options{Scheme: kubernetes.GardenScheme})
 
@@ -116,25 +114,11 @@ var _ = Describe("gardenadm unmanaged infrastructure control plane restoration t
 				}
 			}).Should(Succeed())
 
-			By("Roll out the gardenlet Deployment to trigger ShootState creation")
-			gardenletDeployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: controlPlaneNamespace, Name: "gardenlet"}}
-			Eventually(ctx, func(g Gomega) {
-				g.Expect(shootClientSet.Client().Get(ctx, client.ObjectKeyFromObject(gardenletDeployment), gardenletDeployment)).To(Succeed())
-				patch := client.MergeFrom(gardenletDeployment.DeepCopy())
-				metav1.SetMetaDataAnnotation(&gardenletDeployment.Spec.Template.ObjectMeta, "kubectl.kubernetes.io/restartedAt", time.Now().Format(time.RFC3339))
-				g.Expect(shootClientSet.Client().Patch(ctx, gardenletDeployment, patch)).To(Succeed())
-			}).Should(Succeed())
-			Eventually(ctx, func(g Gomega) {
-				done, err := kubernetesutils.HasDeploymentRolloutCompleted(ctx, shootClientSet.Client(), controlPlaneNamespace, "gardenlet")
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(done).To(BeTrue())
-			}).Should(Succeed())
-
 			By("Wait until the ShootState is created")
 			Eventually(ctx, func() error {
 				return gardenClientSet.Client().Get(ctx, client.ObjectKeyFromObject(shootState), shootState)
 			}).Should(Succeed())
-		}, SpecTimeout(5*time.Minute))
+		}, SpecTimeout(10*time.Minute))
 
 		It("should seed a workload ConfigMap whose survival proves the etcd data was restored", func(ctx SpecContext) {
 			// The default/experimental-configmap is asserted after recovery to prove the etcd data survived. We seed it
