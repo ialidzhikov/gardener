@@ -36,6 +36,11 @@ spec:
       minimum: 1
       # Setting max > min triggers the deployment of the cluster-autoscaler
       maximum: 2
+      systemComponents:
+        # TODO: Investigate and fix why GRM does not work when scheduled to the worker Nodes after
+        # deploying to the Pod network during 'gardenadm restore'.
+        # See https://github.com/ialidzhikov/gardener/issues/23 for more details.
+        allow: false
       kubernetes:
         kubelet:
           maxPods: 250
