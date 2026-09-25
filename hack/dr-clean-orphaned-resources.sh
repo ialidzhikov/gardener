@@ -80,6 +80,12 @@ else
     fi
     force_delete backupbucket "$name"
   done
+
+  # ControllerInstallations are created per DR run for the self-hosted shoot cluster and are orphaned once the
+  # shoot is destroyed, unlike the shared ControllerRegistrations/ControllerDeployments.
+  for ci in $(kubectl_virtual get controllerinstallations -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+    force_delete controllerinstallation "$ci"
+  done
 fi
 
 # Remove the on-disk backup bucket data of the self-hosted shoot(s), keeping the garden-* bucket of the
