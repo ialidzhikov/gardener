@@ -113,7 +113,7 @@ func RunInitFlow(ctx context.Context, opts *Options, b *gardenadmbotanist.Garden
 		})
 		waitUntilControlPlaneNodeLabeled = g.Add(flow.Task{
 			Name:         "Waiting until the control plane Node is labeled",
-			Fn:           flow.TaskFn(b.CheckControlPlaneNodeLabeled).RetryUntilTimeout(2*time.Second, time.Minute),
+			Fn:           flow.TaskFn(b.CheckControlPlaneNodeLabeled).RetryUntilTimeout(2*time.Second, 2*time.Minute),
 			SkipIf:       podNetworkAvailable,
 			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR),
 		})
