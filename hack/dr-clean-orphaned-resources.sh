@@ -57,7 +57,7 @@ if [[ ! -f "$VIRTUAL_GARDEN_KUBECONFIG" ]] || ! kubectl_virtual get namespaces &
   echo "> Virtual garden cluster is not reachable via $VIRTUAL_GARDEN_KUBECONFIG; skipping garden resource cleanup."
 else
   # Only the resources that `gardenadm connect` and the gardenlet create per DR run are removed here:
-  # the Shoot, its ShootState and the Backup{Entry,Bucket}.
+  # the Shoot, its ShootState, the ControllerInstallations and the Backup{Entry,Bucket}.
   #
   # The shared control plane configuration (CloudProfile `local`, ControllerRegistrations,
   # ControllerDeployments, the `garden` Project and Namespace) is deliberately NOT deleted. It is created
@@ -66,6 +66,10 @@ else
   # run, defeating the purpose of reusing the kind cluster.
   force_delete shoot -n "$SHOOT_NAMESPACE" "$SHOOT_NAME"
   force_delete shootstate -n "$SHOOT_NAMESPACE" "$SHOOT_NAME"
+
+  for ci in $(kubectl_virtual get controllerinstallations -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+    force_delete controllerinstallation "$ci"
+  done
 
   for be in $(kubectl_virtual -n "$SHOOT_NAMESPACE" get backupentries -o name 2>/dev/null); do
     force_delete backupentry -n "$SHOOT_NAMESPACE" "${be#*/}"
