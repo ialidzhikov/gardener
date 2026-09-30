@@ -103,6 +103,7 @@ func (b *Botanist) DefaultRuntimeGardenerResourceManager() (resourcemanager.Inte
 
 	return shared.NewRuntimeGardenerResourceManager(b.SeedClientSet.Client(), v1beta1constants.GardenNamespace, b.SecretsManager, resourcemanager.Values{
 		DefaultSeccompProfileEnabled:         features.DefaultFeatureGate.Enabled(features.DefaultSeccompProfile),
+		IsSelfHostedShoot:                    true,
 		SystemComponentsConfigWebhookEnabled: true,
 		HighAvailabilityConfigWebhookEnabled: true,
 		PriorityClassName:                    v1beta1constants.PriorityClassNameShootControlPlane400,

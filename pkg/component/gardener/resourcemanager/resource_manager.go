@@ -326,7 +326,8 @@ type Values struct {
 	NodeAgentAuthorizerAuthorizeWithSelectors *bool
 	// MachineNamespace is the namespace in the source cluster in which the Machine objects are stored.
 	MachineNamespace *string
-	// IsSelfHostedShoot specifies whether GRM is deployed for a self-hosted shoot cluster.
+	// IsSelfHostedShoot specifies whether GRM is deployed for a self-hosted shoot cluster. When true, GRM is pinned to
+	// the control-plane node(s) in every phase.
 	IsSelfHostedShoot bool
 	// PodKubeAPIServerLoadBalancingWebhook specifies the settings of pod-kube-apiserver-load-balancing webhook.
 	PodKubeAPIServerLoadBalancingWebhook PodKubeAPIServerLoadBalancingWebhook
@@ -780,7 +781,7 @@ func (r *resourceManager) ensureService(ctx context.Context) error {
 		if r.values.IsSelfHostedShoot {
 			// For self-hosted shoots the kube-apiserver runs as a host-network static pod and cannot be matched
 			// by a podSelector-based NetworkPolicy. Allowing webhook traffic from all sources ensures the
-			// apiserver can reach GRM even when GRM is not scheduled on the control-plane node.
+			// apiserver can reach gardener-resource-manager.
 			metav1.SetMetaDataAnnotation(&service.ObjectMeta, resourcesv1alpha1.NetworkingFromWorldToPorts, fmt.Sprintf(`[{"protocol":"TCP","port":%d}]`, r.serverPort()))
 		}
 
@@ -853,6 +854,14 @@ func (r *resourceManager) ensureDeployment(ctx context.Context, configMap *corev
 			nodeSelectors = map[string]string{v1beta1constants.LabelWorkerPoolSystemComponents: "true"}
 			break
 		}
+	}
+
+	// For self-hosted shoots, pin gardener-resource-manager to the control-plane node(s) in every phase. The
+	// system-components node label is also applied to worker pools, so the default selector above would let the
+	// scheduler place gardener-resource-manager on a worker node. This deadlocks the pod network, races the
+	// gardener-node-agent CSR approval, and wedges the Recreate rollout during gardenadm init/restore.
+	if r.values.IsSelfHostedShoot {
+		nodeSelectors = map[string]string{v1beta1constants.LabelNodeRoleControlPlane: ""}
 	}
 
 	if r.values.DefaultNotReadyToleration != nil {

@@ -115,7 +115,7 @@ var _ = Describe("ResourceManager", func() {
 		defaultNotReadyTolerationSeconds                     *int64
 		defaultUnreachableTolerationSeconds                  *int64
 		configMapFor                                         func(watchedNamespace *string, responsibilityMode ResponsibilityMode, isWorkerless, bootstrapControlPlaneNode, systemComponentsConfigWebhookEnabled bool) *corev1.ConfigMap
-		deploymentFor                                        func(configMapName string, targetClusterDiffersFromSourceCluster bool, secretNameBootstrapKubeconfig *string, bootstrapControlPlaneNode bool) *appsv1.Deployment
+		deploymentFor                                        func(configMapName string, targetClusterDiffersFromSourceCluster bool, secretNameBootstrapKubeconfig *string, bootstrapControlPlaneNode bool, isSelfHostedShoot bool) *appsv1.Deployment
 		defaultLabels                                        map[string]string
 		roleBinding                                          *rbacv1.RoleBinding
 		role                                                 *rbacv1.Role
@@ -544,6 +544,7 @@ var _ = Describe("ResourceManager", func() {
 			targetClusterDiffersFromSourceCluster bool,
 			secretNameBootstrapKubeconfig *string,
 			bootstrapControlPlaneNode bool,
+			isSelfHostedShoot bool,
 		) *appsv1.Deployment {
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -747,6 +748,10 @@ var _ = Describe("ResourceManager", func() {
 				deployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "KUBERNETES_SERVICE_HOST", Value: "localhost"}}
 				deployment.Spec.Template.Spec.HostNetwork = true
 				deployment.Spec.Template.Spec.PriorityClassName = "system-cluster-critical"
+			}
+
+			if isSelfHostedShoot {
+				deployment.Spec.Template.Spec.NodeSelector = map[string]string{"node-role.kubernetes.io/control-plane": ""}
 			}
 
 			if secretNameBootstrapKubeconfig != nil {
@@ -2090,7 +2095,7 @@ subjects:
 			JustBeforeEach(func() {
 				role.Namespace = watchedNamespace
 				configMap = configMapFor(&watchedNamespace, ForShootOrVirtualGarden, false, false, true)
-				deployment = deploymentFor(configMap.Name, true, nil, false)
+				deployment = deploymentFor(configMap.Name, true, nil, false, false)
 				cfg.TargetNamespaces = targetNamespaces
 				resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 				resourceManager.SetSecrets(secrets)
@@ -2102,7 +2107,7 @@ subjects:
 						matchLabelKeysInPodTopologySpreadFeatureGateDisabled = true
 						cfg.PodTopologySpreadConstraintsEnabled = true
 						configMap = configMapFor(&watchedNamespace, ForShootOrVirtualGarden, false, false, true)
-						deployment = deploymentFor(configMap.Name, true, nil, false)
+						deployment = deploymentFor(configMap.Name, true, nil, false, false)
 
 						resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 						resourceManager.SetSecrets(secrets)
@@ -2213,7 +2218,7 @@ subjects:
 						cfg.PodTopologySpreadConstraintsEnabled = false
 
 						configMap = configMapFor(&watchedNamespace, ForShootOrVirtualGarden, false, false, true)
-						deployment = deploymentFor(configMap.Name, true, nil, false)
+						deployment = deploymentFor(configMap.Name, true, nil, false, false)
 
 						resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 						resourceManager.SetSecrets(secrets)
@@ -2267,7 +2272,7 @@ subjects:
 					resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 					resourceManager.SetSecrets(secrets)
 
-					deployment = deploymentFor(configMap.Name, true, &secretNameBootstrapKubeconfig, false)
+					deployment = deploymentFor(configMap.Name, true, &secretNameBootstrapKubeconfig, false, false)
 
 					Expect(resourceManager.Deploy(ctx)).To(Succeed())
 
@@ -2352,7 +2357,7 @@ subjects:
 				cfg.TargetNamespaces = targetNamespaces
 				cfg.WatchedNamespace = nil
 				configMap = configMapFor(nil, ForShootOrVirtualGarden, false, false, true)
-				deployment = deploymentFor(configMap.Name, true, nil, false)
+				deployment = deploymentFor(configMap.Name, true, nil, false, false)
 
 				resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 				resourceManager.SetSecrets(secrets)
@@ -2487,6 +2492,14 @@ subjects:
 					fmt.Sprintf(`[{"protocol":"TCP","port":%d}]`, serverPort),
 				))
 			})
+
+			It("should pin the deployment to the control-plane node(s)", func() {
+				Expect(resourceManager.Deploy(ctx)).To(Succeed())
+
+				actualDeployment := &appsv1.Deployment{}
+				Expect(fakeClient.Get(ctx, client.ObjectKey{Namespace: deployNamespace, Name: "gardener-resource-manager"}, actualDeployment)).To(Succeed())
+				Expect(actualDeployment.Spec.Template.Spec.NodeSelector).To(Equal(map[string]string{"node-role.kubernetes.io/control-plane": ""}))
+			})
 		})
 
 		Context("target cluster != source cluster, workerless shoot", func() {
@@ -2497,7 +2510,7 @@ subjects:
 				cfg.WatchedNamespace = nil
 				cfg.IsWorkerless = true
 				configMap = configMapFor(nil, ForShootOrVirtualGarden, true, false, true)
-				deployment = deploymentFor(configMap.Name, true, nil, false)
+				deployment = deploymentFor(configMap.Name, true, nil, false, false)
 
 				resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 				resourceManager.SetSecrets(secrets)
@@ -2587,7 +2600,7 @@ subjects:
 				service.Annotations["networking.resources.gardener.cloud/from-all-seed-scrape-targets-allowed-ports"] = `[{"protocol":"TCP","port":8080}]`
 				service.Annotations["networking.resources.gardener.cloud/from-world-to-ports"] = `[{"protocol":"TCP","port":10250}]`
 				configMap = configMapFor(&watchedNamespace, ForRuntime, false, false, false)
-				deployment = deploymentFor(configMap.Name, false, nil, false)
+				deployment = deploymentFor(configMap.Name, false, nil, false, false)
 
 				deployment.Spec.Template.Spec.Volumes = deployment.Spec.Template.Spec.Volumes[:len(deployment.Spec.Template.Spec.Volumes)-1]
 				deployment.Spec.Template.Spec.Containers[0].VolumeMounts = deployment.Spec.Template.Spec.Containers[0].VolumeMounts[:len(deployment.Spec.Template.Spec.Containers[0].VolumeMounts)-1]
@@ -2971,7 +2984,7 @@ subjects:
 		Context("responsibility mode is ForShootOrVirtualGarden", func() {
 			BeforeEach(func() {
 				configMap = configMapFor(&watchedNamespace, ForShootOrVirtualGarden, false, false, true)
-				deployment = deploymentFor(configMap.Name, true, nil, false)
+				deployment = deploymentFor(configMap.Name, true, nil, false, false)
 				resourceManager = New(fakeClient, deployNamespace, nil, cfg)
 			})
 
@@ -3068,7 +3081,7 @@ subjects:
 
 				cfg.ResponsibilityMode = ForRuntime
 				configMap = configMapFor(nil, ForRuntime, false, false, false)
-				deployment = deploymentFor(configMap.Name, false, nil, false)
+				deployment = deploymentFor(configMap.Name, false, nil, false, false)
 				resourceManager = New(fakeClient, deployNamespace, nil, cfg)
 
 				deployment.Spec.Replicas = new(int32(0))
