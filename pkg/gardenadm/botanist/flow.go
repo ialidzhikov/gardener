@@ -41,18 +41,26 @@ func (b *GardenadmBotanist) CleanupStaleRestoreResourcesTaskGroup(clientSet *kub
 		},
 		Dependencies: flow.NewTaskIDs(finalizeManagedResources),
 	})
-	// Deleting the prior control plane Node and its Pods is independent of the ManagedResource/Secret cleanup.
+	deleteGardenerResourceManagers := g.Add(flow.Task{
+		Name: "Deleting stale gardener-resource-managers",
+		Fn: func(ctx context.Context) error {
+			return b.DeleteGardenerResourceManagers(ctx, (*clientSet).Client())
+		},
+		Dependencies: flow.NewTaskIDs(finalizeManagedResources),
+	})
 	_ = g.Add(flow.Task{
 		Name: "Deleting the prior control plane Node and the Pods running on it",
 		Fn: func(ctx context.Context) error {
 			return b.DeletePriorNodeAndPodsRunningOnIt(ctx, (*clientSet).Client(), priorNodeName)
 		},
+		Dependencies: flow.NewTaskIDs(deleteGardenerResourceManagers),
 	})
 	_ = g.Add(flow.Task{
 		Name: "Deleting stale gardener-node-agent CertificateSigningRequests",
 		Fn: func(ctx context.Context) error {
 			return b.DeleteNodeAgentCertificateSigningRequests(ctx, (*clientSet).Client())
 		},
+		Dependencies: flow.NewTaskIDs(deleteGardenerResourceManagers),
 	})
 
 	return g
