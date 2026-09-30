@@ -7,8 +7,6 @@ package botanist_test
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"unsafe"
 
 	"github.com/Masterminds/semver/v3"
 	. "github.com/onsi/ginkgo/v2"
@@ -136,9 +134,7 @@ var _ = Describe("OperatingSystemConfig", func() {
 				},
 			}
 
-			rs := reflect.ValueOf(b).Elem()
-			rf := rs.FieldByName("operatingSystemConfigSecret")
-			reflect.NewAt(rf.Type(), unsafe.Pointer(rf.UnsafeAddr())).Elem().Set(reflect.ValueOf(oscSecret))
+			b.SetOperatingSystemConfigSecret(oscSecret)
 		})
 
 		When("Zone is nil", func() {

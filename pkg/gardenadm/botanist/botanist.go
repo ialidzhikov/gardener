@@ -60,6 +60,9 @@ type GardenadmBotanist struct {
 	// BackupDataPath is the local path on the node where the etcd backup data is stored.
 	// When set, the bootstrap etcd will be initialized from this path using the Local storage provider.
 	BackupDataPath string
+	// IsRestore is true when the botanist was created for `gardenadm restore`. It distinguishes restore from
+	// `gardenadm init` even on an init retry, where a persisted ShootState makes Shoot.IsRestorePhase() return true.
+	IsRestore bool
 
 	operatingSystemConfigSecret *corev1.Secret
 

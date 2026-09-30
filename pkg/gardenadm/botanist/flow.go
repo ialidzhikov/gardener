@@ -8,9 +8,49 @@ import (
 	"context"
 	"time"
 
+	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/gardenlet/operation/botanist"
 	"github.com/gardener/gardener/pkg/utils/flow"
 )
+
+// TaskGroupCleanupStaleRestoreResources is a flow.TaskID for a logical flow.TaskGroup.
+const TaskGroupCleanupStaleRestoreResources flow.TaskID = "TaskGroupCleanupStaleRestoreResources"
+
+// CleanupStaleRestoreResourcesTaskGroup returns the flow.TaskGroup that cleans up the stale resources restored from the
+// ETCD snapshot during `gardenadm restore`: it finalizes and deletes the restored ManagedResources, deletes the stale
+// gardener-node-agent OperatingSystemConfig Secret, and force-deletes the prior control plane Node together with its Pods.
+//
+// clientSet is a pointer because the control plane client set is not yet initialized while the graph is being built; the
+// tasks dereference it only from within their Fn (i.e. at flow run time), after the connection has been established.
+func (b *GardenadmBotanist) CleanupStaleRestoreResourcesTaskGroup(clientSet *kubernetes.Interface, priorNodeName string) flow.TaskGroup {
+	g := flow.NewTaskGroup(TaskGroupCleanupStaleRestoreResources)
+
+	// FinalizeManagedResources must run before DeleteStaleOperatingSystemConfigSecret: the OperatingSystemConfig Secret
+	// is managed by the `shoot-gardener-node-agent` ManagedResource, whose finalizers must be gone before the Secret can
+	// be deleted and MigrateSecrets can reinstall the bootstrap-content Secret under the same name.
+	finalizeManagedResources := g.Add(flow.Task{
+		Name: "Finalizing and deleting ManagedResources restored from the ETCD snapshot",
+		Fn: func(ctx context.Context) error {
+			return b.FinalizeManagedResources(ctx, (*clientSet).Client())
+		},
+	})
+	_ = g.Add(flow.Task{
+		Name: "Deleting stale gardener-node-agent OperatingSystemConfig Secret restored from the ETCD snapshot",
+		Fn: func(ctx context.Context) error {
+			return b.DeleteStaleOperatingSystemConfigSecret(ctx, (*clientSet).Client())
+		},
+		Dependencies: flow.NewTaskIDs(finalizeManagedResources),
+	})
+	// Deleting the prior control plane Node and its Pods is independent of the ManagedResource/Secret cleanup.
+	_ = g.Add(flow.Task{
+		Name: "Deleting the prior control plane Node and the Pods running on it",
+		Fn: func(ctx context.Context) error {
+			return b.DeletePriorNodeAndPodsRunningOnIt(ctx, (*clientSet).Client(), priorNodeName)
+		},
+	})
+
+	return g
+}
 
 // TaskGroupReconcileExtensionControllers is a flow.TaskID for a logical flow.TaskGroup.
 const TaskGroupReconcileExtensionControllers flow.TaskID = "TaskGroupReconcileExtensionControllers"
