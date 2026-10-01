@@ -48,12 +48,19 @@ func (b *GardenadmBotanist) CleanupStaleRestoreResourcesTaskGroup(clientSet *kub
 		},
 		Dependencies: flow.NewTaskIDs(finalizeManagedResources),
 	})
+	deleteExtensionWorkloads := g.Add(flow.Task{
+		Name: "Deleting stale extension workloads",
+		Fn: func(ctx context.Context) error {
+			return b.DeleteExtensionWorkloads(ctx, (*clientSet).Client())
+		},
+		Dependencies: flow.NewTaskIDs(finalizeManagedResources),
+	})
 	_ = g.Add(flow.Task{
 		Name: "Deleting the prior control plane Node and the Pods running on it",
 		Fn: func(ctx context.Context) error {
 			return b.DeletePriorNodeAndPodsRunningOnIt(ctx, (*clientSet).Client(), priorNodeName)
 		},
-		Dependencies: flow.NewTaskIDs(deleteGardenerResourceManagers),
+		Dependencies: flow.NewTaskIDs(deleteGardenerResourceManagers, deleteExtensionWorkloads),
 	})
 	_ = g.Add(flow.Task{
 		Name: "Deleting stale gardener-node-agent CertificateSigningRequests",
