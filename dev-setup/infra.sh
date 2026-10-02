@@ -8,12 +8,14 @@ set -o pipefail
 
 COMMAND="${1:-up}"
 VALID_COMMANDS=("up" "down" "setup-loopback-devices" "cleanup-registry-ca")
+CLAIMANT="${2:-}"
 
 INFRA_COMPOSE_FILE="$(dirname "$0")/infra/docker-compose.yaml"
 DIR_BACKUP_BUCKET="$(dirname "$0")/../dev/local-backupbuckets"
 DIR_REGISTRY="$(dirname "$0")/../dev/local-registry"
 DIR_REGISTRY_TLS="$(dirname "$0")/infra/registry/tls"
 REGISTRY_HOST="registry.local.gardener.cloud"
+INFRA_CLAIMS_DIR="$(dirname "$0")/../dev/.infra-claims"
 
 SUDO=""
 if [[ "$(id -u)" != "0" ]]; then
@@ -384,6 +386,14 @@ EOF
 
     check_shell_dependencies
 
+    # Self-heal stale claims: if claims exist but no infra containers are actually running, they were left behind by a
+    # crashed run (the infra is gone but its claims were never released). Drop them so this `up` starts from a clean
+    # slate and reference counting stays accurate.
+    if [[ -d "$INFRA_CLAIMS_DIR" ]] && [[ -z "$(docker compose -f "$INFRA_COMPOSE_FILE" ps -q 2>/dev/null)" ]]; then
+      echo "> No infra containers running but stale claims exist; resetting them."
+      rm -rf "$INFRA_CLAIMS_DIR"
+    fi
+
     mkdir -m 0755 -p "$DIR_BACKUP_BUCKET" "$DIR_REGISTRY"
 
     "$(dirname "$0")/infra.sh" setup-loopback-devices
@@ -406,9 +416,36 @@ EOF
       # can also be routed back to the cluster.
       ip6tables -t nat -A POSTROUTING -o $(ip route | grep '^default' | awk '{print $5}') -s $(docker network inspect kind -f='{{json .IPAM.Config}}' | jq -r '.[1].Subnet') -j MASQUERADE
     fi
+
+    # Register the caller's claim on the shared infra (see INFRA_CLAIMS_DIR comment above). Only done after a
+    # successful bring-up, so a failed `up` (aborted by `set -o errexit`) does not leave a dangling claim.
+    if [[ -n "$CLAIMANT" ]]; then
+      mkdir -p "$INFRA_CLAIMS_DIR"
+      touch "$INFRA_CLAIMS_DIR/$CLAIMANT"
+    fi
     ;;
 
   down)
+    # Release the caller's claim and only tear the shared infra down once the last claim is gone. A `down` without a
+    # claimant (e.g. a developer running `infra.sh down` directly) or with `--force` tears it down unconditionally,
+    # which also serves as the escape hatch to recover from stale claims left behind by a crashed run.
+    if [[ -n "$CLAIMANT" && "$CLAIMANT" != "--force" ]]; then
+      rm -f "$INFRA_CLAIMS_DIR/$CLAIMANT"
+
+      remaining_claims=()
+      if [[ -d "$INFRA_CLAIMS_DIR" ]]; then
+        for claim in "$INFRA_CLAIMS_DIR"/*; do
+          [[ -e "$claim" ]] && remaining_claims+=("$(basename "$claim")")
+        done
+      fi
+
+      if (( ${#remaining_claims[@]} > 0 )); then
+        echo "Shared infra still claimed by: ${remaining_claims[*]}. Leaving it intact; it will be torn down once the last claim is released (run 'make infra-down' to force)."
+        exit 0
+      fi
+    fi
+    rm -rf "$INFRA_CLAIMS_DIR"
+
     # Reset dynamic updates to the DNS zones by removing the volumes.
     docker compose -f "$INFRA_COMPOSE_FILE" down --volumes
 

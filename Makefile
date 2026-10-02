@@ -314,6 +314,11 @@ gink-up gink-down: $(YQ)
 cleanup-local-registry-ca:
 	$(DEV_SETUP)/infra.sh cleanup-registry-ca
 
+# infra-down forcibly tears down the shared local infra (DNS, registry, backup bucket, kind docker network),
+# ignoring any outstanding claims. Use this to recover from stale claims left behind by a crashed up/down run.
+infra-down:
+	$(DEV_SETUP)/infra.sh down --force
+
 # speed-up skaffold deployments by building all images concurrently
 export SKAFFOLD_BUILD_CONCURRENCY = 0
 # build the images for the platform matching the nodes of the active kubernetes cluster, even in `skaffold build`, which doesn't enable this by default

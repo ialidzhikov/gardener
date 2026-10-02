@@ -140,7 +140,7 @@ EOF
       echo "$socket"
     }
 
-    "$(dirname "$0")/infra.sh" up
+    "$(dirname "$0")/infra.sh" up kind
 
     if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
       echo "Kind cluster '${CLUSTER_NAME}' already exists, skipping creation."
@@ -313,7 +313,7 @@ EOF
     # Only stop the infra containers if deleting the "main" kind cluster.
     # When deleting the secondary cluster, we might still need infra containers (DNS/registry/etc.) for the other
     # cluster (see early exit above)
-    "$(dirname "$0")/infra.sh" down
+    "$(dirname "$0")/infra.sh" down kind
     ;;
 
   *)

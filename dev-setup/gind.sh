@@ -29,7 +29,7 @@ level="${SCENARIO_LEVEL[$SCENARIO]}"
 
 case "$COMMAND" in
   up)
-    "$(dirname "$0")/infra.sh" up
+    "$(dirname "$0")/infra.sh" up gind
 
     # Compute a checksum-based image tag so that `docker compose up` only rebuilds and recreates the machine containers
     # when the Dockerfile or its build context actually changed.
@@ -111,13 +111,9 @@ case "$COMMAND" in
 
     docker compose -f "$GIND_COMPOSE_FILE" down --volumes
 
-    # Preserve the shared infra only while the 'gardener-local' kind cluster exists, so the DR flow can reuse it and its
-    # Gardener control plane across gind-up/gind-down cycles. `make kind-down` owns the infra teardown.
-    if kind get clusters 2>/dev/null | grep -q "^gardener-local$"; then
-      echo "Kind cluster 'gardener-local' still present; leaving shared infra intact. Run 'make kind-down' to remove it."
-    else
-      "$(dirname "$0")/infra.sh" down
-    fi
+    # Release gind's claim on the shared infra. It is only torn down once the last claim is released (e.g. by
+    # `make kind-down`), so the DR flow can reuse the kind cluster and its Gardener control plane across cycles.
+    "$(dirname "$0")/infra.sh" down gind
     ;;
 
   *)
