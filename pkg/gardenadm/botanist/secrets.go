@@ -33,7 +33,11 @@ func (b *GardenadmBotanist) MigrateSecrets(ctx context.Context, fakeClient, real
 
 	for _, secret := range secretList.Items {
 		taskFns = append(taskFns, func(ctx context.Context) error {
-			return client.IgnoreAlreadyExists(realClient.Create(ctx, &corev1.Secret{
+			fmt.Println("-----> Migrate Secret:", secret.Name, secret.Namespace)
+			if secret.Name == "gardener-node-agent-control-plane" {
+				fmt.Println("-----> Secret data map:", secret.Name, string(secret.Data["osc.yaml"]))
+			}
+			err := realClient.Create(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        secret.Name,
 					Namespace:   secret.Namespace,
@@ -43,7 +47,11 @@ func (b *GardenadmBotanist) MigrateSecrets(ctx context.Context, fakeClient, real
 				Type:      secret.Type,
 				Immutable: secret.Immutable,
 				Data:      secret.Data,
-			}))
+			})
+			if err != nil {
+				fmt.Println("-----> Create secret error:", secret.Name, secret.Namespace, err)
+			}
+			return client.IgnoreAlreadyExists(err)
 		})
 	}
 

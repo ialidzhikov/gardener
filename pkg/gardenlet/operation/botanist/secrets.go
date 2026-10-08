@@ -41,7 +41,9 @@ func (b *Botanist) InitializeSecretsManagement(ctx context.Context) error {
 	// create corresponding secrets in the shoot namespace in the seed before initializing it. Note that this is
 	// explicitly only done in case of restoration to prevent split-brain situations as described in
 	// https://github.com/gardener/gardener/issues/5377.
+	//fmt.Println("---------------->InitializeSecretsManagement")
 	if b.Shoot.IsRestorePhase() {
+		//fmt.Println("---------------->restoreSecretsFromShootState")
 		if err := b.restoreSecretsFromShootState(ctx); err != nil {
 			return err
 		}
@@ -103,6 +105,7 @@ func (b *Botanist) lastSecretRotationStartTimes() map[string]time.Time {
 
 func (b *Botanist) restoreSecretsFromShootState(ctx context.Context) error {
 	var fns []flow.TaskFn
+	//fmt.Println("-------->b.Shoot.GetShootState().Spec.Gardener")
 
 	for _, v := range b.Shoot.GetShootState().Spec.Gardener {
 		entry := v
@@ -117,7 +120,7 @@ func (b *Botanist) restoreSecretsFromShootState(ctx context.Context) error {
 				Namespace: b.Shoot.ControlPlaneNamespace,
 				Labels:    entry.Labels,
 			}
-
+			//fmt.Println("-------->restoreSecretFromPersistedData:", objectMeta, string(entry.Data.Raw))
 			return restoreSecretFromPersistedData(ctx, b.SeedClientSet.Client(), objectMeta, entry.Data.Raw)
 		})
 	}

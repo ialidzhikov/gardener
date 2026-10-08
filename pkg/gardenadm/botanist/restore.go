@@ -72,10 +72,15 @@ func (b *GardenadmBotanist) DeleteStaleOperatingSystemConfigSecret(ctx context.C
 	if b.operatingSystemConfigSecret == nil {
 		return fmt.Errorf("operating system config secret is nil, make sure to call createOperatingSystemConfigSecretForNodeAgent() first")
 	}
-
+	fmt.Println("---------------->OSC secret name:", b.operatingSystemConfigSecret.Name)
+	fmt.Println("---------------->OSC secret ns:", b.operatingSystemConfigSecret.Namespace)
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      b.operatingSystemConfigSecret.Name,
 		Namespace: b.operatingSystemConfigSecret.Namespace,
 	}}
-	return client.IgnoreNotFound(realClient.Delete(ctx, secret))
+	err := realClient.Delete(ctx, secret)
+	if err != nil {
+		fmt.Println("---------------->OSC delete err:", err)
+	}
+	return client.IgnoreNotFound(err)
 }
