@@ -7,8 +7,11 @@ package botanist
 import (
 	"context"
 	"fmt"
+	"time"
 
+	resourcesv1alpha1 "github.com/gardener/gardener/pkg/apis/resources/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -83,4 +86,43 @@ func (b *GardenadmBotanist) DeleteStaleOperatingSystemConfigSecret(ctx context.C
 		fmt.Println("---------------->OSC delete err:", err)
 	}
 	return client.IgnoreNotFound(err)
+}
+
+func (b *GardenadmBotanist) FinalizeGardenerNodeAgentManagedResource(ctx context.Context, realClient client.Client) error {
+	managedResource := &resourcesv1alpha1.ManagedResource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "shoot-gardener-node-agent",
+			Namespace: metav1.NamespaceSystem,
+		},
+	}
+	if err := realClient.Get(ctx, client.ObjectKeyFromObject(managedResource), managedResource); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	obj := managedResource.DeepCopy()
+	obj.SetFinalizers(nil)
+
+	b.Logger.Info("Removing ManagedResource finalizers", "managedResource", client.ObjectKeyFromObject(obj))
+	if err := realClient.Update(ctx, obj); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed updating ManagedResource %s: %w", client.ObjectKeyFromObject(obj), err)
+	}
+
+	b.Logger.Info("Deleting ManagedResource", "managedResource", client.ObjectKeyFromObject(obj))
+	if err := realClient.Delete(ctx, obj); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed deleting ManagedResource %s: %w", client.ObjectKeyFromObject(obj), err)
+	}
+
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	b.Logger.Info("Waiting for ManagedResource to be cleaned up", "managedResource", client.ObjectKeyFromObject(obj))
+	if err := kubernetesutils.WaitUntilResourceDeleted(ctxWithTimeout, realClient, managedResource, 10*time.Second); err != nil {
+		return fmt.Errorf("failed waiting until ManagedResource %s is cleaned up: %w", client.ObjectKeyFromObject(obj), err)
+	}
+
+	return nil
 }
