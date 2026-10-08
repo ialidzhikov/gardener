@@ -317,6 +317,32 @@ var _ = Describe("helmregistry", func() {
 		Expect(out).NotTo(BeEmpty())
 	})
 
+	It("should append the ChartsCABundle onto the system trust store rather than replacing it", func() {
+		// Regression guard for the x509 unknown-authority failure introduced when a charts CA bundle is configured:
+		// the custom CA must be added on top of the system roots, not used as the sole trust anchor. A wrong-only
+		// charts bundle must therefore still fail against the self-signed test registry with a TLS verification error
+		// (i.e. the system pool is the base, and the wrong CA did not accidentally become a trusted root), while the
+		// correct CA supplied via the secret ref still verifies.
+		wrongCA, err := (&secretsutils.CertificateSecretConfig{
+			Name:        "wrong-ca",
+			CommonName:  "WrongCA",
+			CertType:    secretsutils.CACert,
+			IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+		}).GenerateCertificate()
+		Expect(err).NotTo(HaveOccurred())
+		wrongCAData := wrongCA.SecretData()
+
+		DeferCleanup(test.WithVar(&chartsCABundleFunc, func() *imagevectorutils.CABundle {
+			return &imagevectorutils.CABundle{Inline: new(string(wrongCAData[secretsutils.DataKeyCertificateCA]))}
+		}))
+
+		_, err = hr.Pull(ctx, &gardencorev1.OCIRepository{
+			Repository: new(registryAddress + "/charts/example"),
+			Tag:        new("0.1.0"),
+		})
+		Expect(err).To(MatchError(ContainSubstring("tls: failed to verify certificate: x509")))
+	})
+
 	It("should return error when ChartsCABundle contains invalid PEM", func() {
 		DeferCleanup(test.WithVar(&chartsCABundleFunc, func() *imagevectorutils.CABundle {
 			return &imagevectorutils.CABundle{Inline: new("invalid-pem-data")}
