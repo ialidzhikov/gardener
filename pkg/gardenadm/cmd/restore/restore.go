@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/afero"
@@ -17,6 +19,8 @@ import (
 	gardenadmbotanist "github.com/gardener/gardener/pkg/gardenadm/botanist"
 	"github.com/gardener/gardener/pkg/gardenadm/cmd"
 	initcmd "github.com/gardener/gardener/pkg/gardenadm/cmd/init"
+	"github.com/gardener/gardener/pkg/utils/flow"
+	gardenletutils "github.com/gardener/gardener/pkg/utils/gardener/gardenlet"
 )
 
 // NewCommand creates a new cobra.Command.
@@ -92,11 +96,11 @@ func run(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed to bootstrap control plane: %w", err)
 	}
 
-	if err := initcmd.RunInitFlow(ctx, b, initOpts); err != nil {
-		// Best-effort: restore gardenlet replicas even when the init flow fails so the cluster is not left with
+	if err := runRestoreFlow(ctx, b, opts); err != nil {
+		// Best-effort: restore gardenlet replicas even when the restore flow fails so the cluster is not left with
 		// gardenlet permanently scaled to zero.
 		if scaleErr := b.ScaleUpGardenlet(ctx, b.SeedClientSet.Client()); scaleErr != nil {
-			opts.Log.Error(scaleErr, "Failed to scale gardenlet back up after init flow failure")
+			opts.Log.Error(scaleErr, "Failed to scale gardenlet back up after restore flow failure")
 		}
 		return err
 	}
@@ -106,6 +110,93 @@ func run(ctx context.Context, opts *Options) error {
 	}
 
 	removeRestoreInProgressMarker(opts.Log, fs)
+
+	fmt.Fprintf(opts.Out, `
+Your Shoot cluster control-plane node has been restored successfully!
+
+To complete the restoration, the Shoot must now be reconciled by gardenlet. Trigger a reconciliation by running
+the following against the garden cluster:
+
+  kubectl -n %s annotate shoot %s gardener.cloud/operation=reconcile
+`, b.Shoot.GetInfo().Namespace, b.Shoot.GetInfo().Name)
+
+	return nil
+}
+
+// runRestoreFlow runs the restore flow that brings up the restored control plane node. It deploys only the components
+// required for the restored control plane node to become functional again. All other components are expected to be
+// present in the restored etcd and are healed by a subsequent Shoot reconciliation by gardenlet.
+func runRestoreFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
+	dir := filepath.Dir(cmd.ConfigDirLocation)
+	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
+		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
+	}
+	if err := b.FS.WriteFile(cmd.ConfigDirLocation, []byte(opts.ConfigDir), 0640); err != nil {
+		return fmt.Errorf("failed writing config directory location file %s: %w", cmd.ConfigDirLocation, err)
+	}
+
+	podNetworkAvailable, err := b.IsPodNetworkAvailable(ctx)
+	if err != nil {
+		return fmt.Errorf("failed checking whether pod network is already available: %w", err)
+	}
+
+	// If the self-hosted shoot is also the garden runtime cluster, then gardener-operator is taking over
+	// responsibility of some components (e.g., etcd-druid). Detect this by checking whether a Garden resource exists.
+	shootIsGarden, err := gardenletutils.ClusterIsGarden(ctx, b.SeedClientSet.Client())
+	if err != nil {
+		return fmt.Errorf("failed checking whether shoot is garden: %w", err)
+	}
+
+	var (
+		g = flow.NewGraph("restore")
+
+		_                           = g.AddGroup(b.DeployNamespacesTaskGroup())
+		_                           = g.AddGroup(b.DeployCloudProviderSecretTaskGroup())
+		_                           = g.AddGroup(b.ReconcileCustomResourceDefinitionsTaskGroup())
+		_                           = g.AddGroup(b.ReconcileClusterResourceTaskGroup())
+		initializeSecretsManagement = g.AddGroup(b.InitializeSecretsManagementTaskGroup())
+		activateGardenerNodeAgent   = g.Add(flow.Task{
+			Name:         "Activating gardener-node-agent",
+			Fn:           b.ActivateGardenerNodeAgent,
+			Dependencies: flow.NewTaskIDs(initializeSecretsManagement),
+		})
+		approveGardenerNodeAgentCSR = g.Add(flow.Task{
+			Name:         "Approving gardener-node-agent client certificate signing request",
+			Fn:           flow.TaskFn(b.ApproveNodeAgentCertificateSigningRequest).RetryUntilTimeout(2*time.Second, time.Minute),
+			Dependencies: flow.NewTaskIDs(activateGardenerNodeAgent),
+		})
+		waitUntilControlPlaneNodeLabeled = g.Add(flow.Task{
+			Name:         "Waiting until the control plane Node is labeled",
+			Fn:           flow.TaskFn(b.CheckControlPlaneNodeLabeled).RetryUntilTimeout(2*time.Second, 2*time.Minute),
+			SkipIf:       podNetworkAvailable,
+			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR),
+		})
+		_ = g.AddGroup(
+			b.ReconcileRuntimeGardenerResourceManagerTaskGroup(podNetworkAvailable, shootIsGarden, false).
+				WithDependencies(approveGardenerNodeAgentCSR, waitUntilControlPlaneNodeLabeled),
+		)
+		_ = g.AddGroup(
+			b.ReconcileGardenerResourceManagerTaskGroup(podNetworkAvailable, false).
+				WithDependencies(approveGardenerNodeAgentCSR, waitUntilControlPlaneNodeLabeled),
+		)
+		_ = g.AddGroup(b.ReconcileReferencedResourcesTaskGroup())
+		_ = g.AddGroup(b.ReconcileSystemResourcesTaskGroup())
+		_ = g.AddGroup(b.ReconcileExtensionControllersTaskGroup(podNetworkAvailable).
+			WithDependencies(waitUntilControlPlaneNodeLabeled))
+		_ = g.AddGroup(
+			b.ReconcileInfrastructureTaskGroup(false).
+				WithDependencies(gardenadmbotanist.TaskGroupReconcileExtensionControllers),
+		)
+		_ = g.AddGroup(b.ReconcileShootNamespacesTaskGroup(false))
+	)
+
+	if err := g.Compile().Run(ctx, flow.Opts{
+		Log:              opts.Log,
+		ProgressReporter: flow.NewCommandLineProgressReporter(opts.ErrOut),
+	}); err != nil {
+		return flow.Errors(err)
+	}
+
 	return nil
 }
 

@@ -24,6 +24,7 @@ import (
 
 	v1beta1helper "github.com/gardener/gardener/pkg/api/core/v1beta1/helper"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	"github.com/gardener/gardener/test/e2e/gardenadm"
@@ -223,7 +224,46 @@ var _ = Describe("gardenadm unmanaged infrastructure control plane restoration t
 			)
 			Expect(err).NotTo(HaveOccurred())
 			log.Info("gardenadm restore finished", "output", string(stdOut.Contents()))
+			Expect(stdOut).To(gbytes.Say("Your Shoot cluster control-plane node has been restored successfully!"))
+			Expect(stdOut).To(gbytes.Say(fmt.Sprintf("kubectl -n %s annotate shoot %s gardener.cloud/operation=reconcile", shootNamespace, shootName)))
 		}, SpecTimeout(10*time.Minute))
+
+		It("should reconcile the Shoot to complete the restoration", func(ctx SpecContext) {
+			shoot := &gardencorev1beta1.Shoot{ObjectMeta: metav1.ObjectMeta{Name: shootName, Namespace: shootNamespace}}
+			Expect(gardenClientSet.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+
+			By("Trigger the Shoot reconciliation")
+			reconcileTriggeredAt := time.Now()
+			patch := client.MergeFrom(shoot.DeepCopy())
+			metav1.SetMetaDataAnnotation(&shoot.ObjectMeta, v1beta1constants.GardenerOperation, v1beta1constants.GardenerOperationReconcile)
+			Expect(gardenClientSet.Client().Patch(ctx, shoot, patch)).To(Succeed())
+
+			By("Wait until the Shoot is reconciled")
+			requiredConditions := []gardencorev1beta1.ConditionType{
+				gardencorev1beta1.GardenletReady,
+				gardencorev1beta1.ShootAPIServerAvailable,
+				gardencorev1beta1.ShootControlPlaneHealthy,
+				gardencorev1beta1.ShootObservabilityComponentsHealthy,
+				gardencorev1beta1.ShootEveryNodeReady,
+				gardencorev1beta1.ShootSystemComponentsHealthy,
+				gardencorev1beta1.SeedBackupBucketsReady,
+			}
+			Eventually(ctx, func(g Gomega) {
+				g.Expect(gardenClientSet.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+
+				g.Expect(shoot.Annotations).NotTo(HaveKey(v1beta1constants.GardenerOperation), "reconcile operation should have been picked up by gardenlet")
+				g.Expect(shoot.Status.LastOperation).NotTo(BeNil())
+				g.Expect(shoot.Status.LastOperation.Type).To(Equal(gardencorev1beta1.LastOperationTypeReconcile))
+				g.Expect(shoot.Status.LastOperation.LastUpdateTime.Time).To(BeTemporally(">", reconcileTriggeredAt), "last operation should be the triggered reconciliation")
+				g.Expect(shoot.Status.LastOperation.State).To(Equal(gardencorev1beta1.LastOperationStateSucceeded))
+
+				for _, conditionType := range requiredConditions {
+					condition := v1beta1helper.GetCondition(shoot.Status.Conditions, conditionType)
+					g.Expect(condition).NotTo(BeNil(), "condition %q should be present", conditionType)
+					g.Expect(condition.Status).To(Equal(gardencorev1beta1.ConditionTrue), "condition %q should be True", conditionType)
+				}
+			}).WithPolling(10 * time.Second).Should(Succeed())
+		}, SpecTimeout(20*time.Minute))
 
 		It("should observe that all nodes are ready", func(ctx SpecContext) {
 			Eventually(ctx, func(g Gomega) {
