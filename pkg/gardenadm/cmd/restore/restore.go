@@ -110,10 +110,13 @@ func run(ctx context.Context, opts *Options) error {
 	removeRestoreInProgressMarker(opts.Log, fs)
 
 	fmt.Fprintf(opts.Out, `
-Your Shoot cluster control-plane node has been restored successfully!
+Your Shoot cluster control-plane node has been brought back up.
 
-To complete the restoration, the Shoot must now be reconciled by gardenlet. Trigger a reconciliation by running
-the following against the garden cluster:
+The restore recovered the control-plane node, but the Shoot is not fully reconciled yet. gardenlet completes the
+restoration by reconciling the Shoot. This requires a healthy Gardener control plane that gardenlet can reach; if it was
+also affected by the outage, recover it first, otherwise the reconciliation will not make progress.
+
+To complete the restoration, trigger a reconciliation by running the following against the garden cluster:
 
   kubectl -n %s annotate shoot %s gardener.cloud/operation=reconcile
 `, b.Shoot.GetInfo().Namespace, b.Shoot.GetInfo().Name)

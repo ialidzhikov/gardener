@@ -224,7 +224,7 @@ var _ = Describe("gardenadm unmanaged infrastructure control plane restoration t
 			)
 			Expect(err).NotTo(HaveOccurred())
 			log.Info("gardenadm restore finished", "output", string(stdOut.Contents()))
-			Expect(stdOut).To(gbytes.Say("Your Shoot cluster control-plane node has been restored successfully!"))
+			Expect(stdOut).To(gbytes.Say("Your Shoot cluster control-plane node has been brought back up."))
 			Expect(stdOut).To(gbytes.Say(fmt.Sprintf("kubectl -n %s annotate shoot %s gardener.cloud/operation=reconcile", shootNamespace, shootName)))
 		}, SpecTimeout(10*time.Minute))
 
