@@ -84,6 +84,34 @@ func (b *GardenadmBotanist) CleanUpStaleRestoredResourcesTaskGroup(clientSet *ku
 	return g
 }
 
+// TaskGroupActivateGardenerNodeAgent is a flow.TaskID for a logical flow.TaskGroup.
+const TaskGroupActivateGardenerNodeAgent flow.TaskID = "TaskGroupActivateGardenerNodeAgent"
+
+// ActivateGardenerNodeAgentTaskGroup returns the flow.TaskGroup that activates gardener-node-agent, approves its client
+// certificate signing request and waits for the control plane Node to be labeled. The waiting task is skipped when the
+// pod network is already available. This chain is shared by the `gardenadm init` and `gardenadm restore` flows.
+func (b *GardenadmBotanist) ActivateGardenerNodeAgentTaskGroup(podNetworkAvailable bool) flow.TaskGroup {
+	g := flow.NewTaskGroup(TaskGroupActivateGardenerNodeAgent).WithDependencies(botanist.TaskGroupInitializeSecretsManagement)
+
+	activateGardenerNodeAgent := g.Add(flow.Task{
+		Name: "Activating gardener-node-agent",
+		Fn:   b.ActivateGardenerNodeAgent,
+	})
+	approveGardenerNodeAgentCSR := g.Add(flow.Task{
+		Name:         "Approving gardener-node-agent client certificate signing request",
+		Fn:           flow.TaskFn(b.ApproveNodeAgentCertificateSigningRequest).RetryUntilTimeout(2*time.Second, time.Minute),
+		Dependencies: flow.NewTaskIDs(activateGardenerNodeAgent),
+	})
+	_ = g.Add(flow.Task{
+		Name:         "Waiting until the control plane Node is labeled",
+		Fn:           flow.TaskFn(b.CheckControlPlaneNodeLabeled).RetryUntilTimeout(2*time.Second, 2*time.Minute),
+		SkipIf:       podNetworkAvailable,
+		Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR),
+	})
+
+	return g
+}
+
 // TaskGroupReconcileExtensionControllers is a flow.TaskID for a logical flow.TaskGroup.
 const TaskGroupReconcileExtensionControllers flow.TaskID = "TaskGroupReconcileExtensionControllers"
 

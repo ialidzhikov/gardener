@@ -92,39 +92,24 @@ func runInitFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, op
 		allowBackup      = v1beta1helper.GetBackupConfigForShoot(b.Shoot.GetInfo(), nil) != nil
 		kubeProxyEnabled = v1beta1helper.KubeProxyEnabled(b.Shoot.GetInfo().Spec.Kubernetes.KubeProxy)
 
-		_                           = g.AddGroup(b.DeployNamespacesTaskGroup())
-		_                           = g.AddGroup(b.DeployCloudProviderSecretTaskGroup())
-		_                           = g.AddGroup(b.ReconcileCustomResourceDefinitionsTaskGroup())
-		_                           = g.AddGroup(b.ReconcileClusterResourceTaskGroup())
-		initializeSecretsManagement = g.AddGroup(b.InitializeSecretsManagementTaskGroup())
-		activateGardenerNodeAgent   = g.Add(flow.Task{
-			Name:         "Activating gardener-node-agent",
-			Fn:           b.ActivateGardenerNodeAgent,
-			Dependencies: flow.NewTaskIDs(initializeSecretsManagement),
-		})
-		approveGardenerNodeAgentCSR = g.Add(flow.Task{
-			Name:         "Approving gardener-node-agent client certificate signing request",
-			Fn:           flow.TaskFn(b.ApproveNodeAgentCertificateSigningRequest).RetryUntilTimeout(2*time.Second, time.Minute),
-			Dependencies: flow.NewTaskIDs(activateGardenerNodeAgent),
-		})
-		waitUntilControlPlaneNodeLabeled = g.Add(flow.Task{
-			Name:         "Waiting until the control plane Node is labeled",
-			Fn:           flow.TaskFn(b.CheckControlPlaneNodeLabeled).RetryUntilTimeout(2*time.Second, 2*time.Minute),
-			SkipIf:       podNetworkAvailable,
-			Dependencies: flow.NewTaskIDs(approveGardenerNodeAgentCSR),
-		})
+		_                                       = g.AddGroup(b.DeployNamespacesTaskGroup())
+		_                                       = g.AddGroup(b.DeployCloudProviderSecretTaskGroup())
+		_                                       = g.AddGroup(b.ReconcileCustomResourceDefinitionsTaskGroup())
+		_                                       = g.AddGroup(b.ReconcileClusterResourceTaskGroup())
+		_                                       = g.AddGroup(b.InitializeSecretsManagementTaskGroup())
+		activateGardenerNodeAgent               = g.AddGroup(b.ActivateGardenerNodeAgentTaskGroup(podNetworkAvailable))
 		reconcileRuntimeGardenerResourceManager = g.AddGroup(
 			b.ReconcileRuntimeGardenerResourceManagerTaskGroup(podNetworkAvailable, shootIsGarden, false).
-				WithDependencies(approveGardenerNodeAgentCSR, waitUntilControlPlaneNodeLabeled),
+				WithDependencies(activateGardenerNodeAgent),
 		)
 		reconcileGardenerResourceManager = g.AddGroup(
 			b.ReconcileGardenerResourceManagerTaskGroup(podNetworkAvailable, false).
-				WithDependencies(approveGardenerNodeAgentCSR, waitUntilControlPlaneNodeLabeled),
+				WithDependencies(activateGardenerNodeAgent),
 		)
 		_                             = g.AddGroup(b.ReconcileReferencedResourcesTaskGroup())
 		_                             = g.AddGroup(b.ReconcileSystemResourcesTaskGroup())
 		reconcileExtensionControllers = g.AddGroup(b.ReconcileExtensionControllersTaskGroup(podNetworkAvailable).
-						WithDependencies(waitUntilControlPlaneNodeLabeled))
+						WithDependencies(activateGardenerNodeAgent))
 		reconcileNetworkPolicies = g.AddGroup(b.ReconcileNetworkPoliciesTaskGroup())
 		_                        = g.AddGroup(
 			b.ReconcileInfrastructureTaskGroup(false).
