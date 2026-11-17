@@ -68,12 +68,11 @@ func run(ctx context.Context, opts *Options) error {
 		return fmt.Errorf("failed bootstrapping control plane: %w", err)
 	}
 
-	return RunInitFlow(ctx, b, opts)
+	return runInitFlow(ctx, b, opts)
 }
 
-// RunInitFlow runs the main init flow that deploys the shoot components on an already-bootstrapped control plane.
-// It is exported so that the `gardenadm restore` command can reuse the same graph.
-func RunInitFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
+// runInitFlow runs the main init flow that deploys the shoot components on an already-bootstrapped control plane.
+func runInitFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
 	dir := filepath.Dir(cmd.ConfigDirLocation)
 	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
 		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
@@ -495,7 +494,7 @@ func BootstrapControlPlane(ctx context.Context, opts *Options, backupDataPath, p
 	if err != nil {
 		return nil, err
 	}
-	// Carry the restore intent onto the returned botanist so that RunInitFlow can gate its restore-only steps on it.
+	// Carry the restore intent onto the returned botanist so that runInitFlow can gate its restore-only steps on it.
 	bootstrappedBotanist.IsRestore = b.IsRestore
 
 	return bootstrappedBotanist, nil
