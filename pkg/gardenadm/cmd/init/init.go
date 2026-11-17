@@ -7,8 +7,6 @@ package init
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -73,12 +71,8 @@ func run(ctx context.Context, opts *Options) error {
 
 // runInitFlow runs the main init flow that deploys the shoot components on an already-bootstrapped control plane.
 func runInitFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
-	dir := filepath.Dir(cmd.ConfigDirLocation)
-	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
-		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
-	}
-	if err := b.FS.WriteFile(cmd.ConfigDirLocation, []byte(opts.ConfigDir), 0640); err != nil {
-		return fmt.Errorf("failed writing config directory location file %s: %w", cmd.ConfigDirLocation, err)
+	if err := cmd.PersistConfigDirLocation(b.FS, opts.ConfigDir); err != nil {
+		return err
 	}
 
 	podNetworkAvailable, err := b.IsPodNetworkAvailable(ctx)

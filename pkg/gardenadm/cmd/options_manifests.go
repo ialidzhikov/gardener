@@ -6,7 +6,9 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 
 	"github.com/gardener/gardener/pkg/gardenadm/botanist"
@@ -43,6 +45,20 @@ func (o *ManifestOptions) AddFlags(fs *pflag.FlagSet) {
 
 // ConfigDirLocation is the location where `gardenadm init` stores the config directory path.
 const ConfigDirLocation = botanist.GardenadmBaseDir + "/config-directory"
+
+// PersistConfigDirLocation records the path to the user's config directory so that subsequent gardenadm invocations
+// (and gardener-node-agent) can locate the manifests. It writes configDir verbatim as the content of the well-known
+// ConfigDirLocation file. It is used by both the `gardenadm init` and `gardenadm restore` flows.
+func PersistConfigDirLocation(fs afero.Afero, configDir string) error {
+	dir := filepath.Dir(ConfigDirLocation)
+	if err := fs.MkdirAll(dir, 0750); err != nil {
+		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
+	}
+	if err := fs.WriteFile(ConfigDirLocation, []byte(configDir), 0640); err != nil {
+		return fmt.Errorf("failed writing config directory location file %s: %w", ConfigDirLocation, err)
+	}
+	return nil
+}
 
 // RestoreInProgressLocation is the marker file written by `gardenadm restore` while a restore is
 // in progress. It is written on the first invocation and removed only upon successful completion.

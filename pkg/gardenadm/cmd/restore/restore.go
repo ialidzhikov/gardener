@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -127,12 +126,8 @@ the following against the garden cluster:
 // required for the restored control plane node to become functional again. All other components are expected to be
 // present in the restored etcd and are healed by a subsequent Shoot reconciliation by gardenlet.
 func runRestoreFlow(ctx context.Context, b *gardenadmbotanist.GardenadmBotanist, opts *Options) error {
-	dir := filepath.Dir(cmd.ConfigDirLocation)
-	if err := b.FS.MkdirAll(dir, os.ModeDir); err != nil {
-		return fmt.Errorf("failed creating config directory location dir %s: %w", dir, err)
-	}
-	if err := b.FS.WriteFile(cmd.ConfigDirLocation, []byte(opts.ConfigDir), 0640); err != nil {
-		return fmt.Errorf("failed writing config directory location file %s: %w", cmd.ConfigDirLocation, err)
+	if err := cmd.PersistConfigDirLocation(b.FS, opts.ConfigDir); err != nil {
+		return err
 	}
 
 	podNetworkAvailable, err := b.IsPodNetworkAvailable(ctx)
