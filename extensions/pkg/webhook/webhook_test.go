@@ -19,6 +19,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubernetesscheme "k8s.io/client-go/kubernetes/scheme"
@@ -49,6 +50,10 @@ var _ = Describe("Webhook", func() {
 				ObjectSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"some": "value"},
 				},
+				// TODO: Continue from here
+				MatchConditions: []admissionregistrationv1.MatchCondition{
+					{},
+				},
 				Path: "/webhook",
 				Mutators: map[Mutator][]Type{
 					&fakeMutator{}: {{Obj: &corev1.Secret{}}},
@@ -64,6 +69,7 @@ var _ = Describe("Webhook", func() {
 			Expect(webhook.ObjectSelector).To(Equal(&metav1.LabelSelector{
 				MatchLabels: map[string]string{"some": "value"},
 			}))
+
 			Expect(webhook.Webhook).NotTo(BeNil())
 			Expect(webhook.Types).To(ConsistOf(Type{Obj: &corev1.Secret{}}))
 		})

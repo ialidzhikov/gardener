@@ -50,6 +50,7 @@ type Webhook struct {
 	Handler           http.Handler
 	NamespaceSelector *metav1.LabelSelector
 	ObjectSelector    *metav1.LabelSelector
+	MatchConditions   []admissionregistrationv1.MatchCondition
 	FailurePolicy     *admissionregistrationv1.FailurePolicyType
 	TimeoutSeconds    *int32
 }
@@ -68,6 +69,7 @@ type Args struct {
 	Target            string
 	NamespaceSelector *metav1.LabelSelector
 	ObjectSelector    *metav1.LabelSelector
+	MatchConditions   []admissionregistrationv1.MatchCondition
 	Predicates        []predicate.Predicate
 	Validators        map[Validator][]Type
 	Mutators          map[Mutator][]Type
@@ -121,6 +123,7 @@ func New(mgr manager.Manager, args Args) (*Webhook, error) {
 		Action:            actionType,
 		NamespaceSelector: args.NamespaceSelector,
 		ObjectSelector:    args.ObjectSelector,
+		MatchConditions:   args.MatchConditions,
 		Path:              args.Path,
 		Target:            args.Target,
 		Webhook:           &admission.Webhook{Handler: handler, RecoverPanic: true},
